@@ -61,6 +61,7 @@ def ask(
     question: str,
     top_k: int | None = None,
     file_type: str | None = None,
+    model: str | None = None,
 ) -> dict:
     """Ask a question about the codebase and get an answer with sources."""
     results = retrieve(question, top_k=top_k, file_type=file_type)
@@ -72,7 +73,7 @@ def ask(
     ])
 
     llm = ChatOpenAI(
-        model=settings.chat_model,
+        model=model or settings.chat_model,
         api_key=settings.openai_api_key,
         temperature=0,
     )

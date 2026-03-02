@@ -24,13 +24,14 @@ async def api_ask(request: Request):
     question = body.get("question", "")
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
+    model = body.get("model") or None
 
     if not question.strip():
         return {"error": "Question is required"}
 
     from legacylens.chain import ask
 
-    result = ask(question, top_k=top_k, file_type=file_type)
+    result = ask(question, top_k=top_k, file_type=file_type, model=model)
     return result
 
 

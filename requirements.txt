@@ -1,0 +1,11 @@
+langchain-core>=0.3
+langchain-openai>=0.3
+pinecone>=6.0
+openai>=1.0
+tiktoken>=0.7
+fastapi>=0.115
+uvicorn>=0.32
+jinja2>=3.1
+typer>=0.14
+pydantic-settings>=2.0
+python-dotenv>=1.0
