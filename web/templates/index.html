@@ -6,12 +6,14 @@
     <title>LegacyLens - AI-Powered COBOL Insights</title>
     <!-- Monofonto: Fallout 3/NV Pip-Boy UI font (Typodermic, free commercial) -->
     <link href="https://fonts.cdnfonts.com/css/monofonto" rel="stylesheet">
+    <!-- Fixedsys Excelsior: Fallout 3/NV terminal font (CC0, public domain) -->
+    <link href="https://fonts.cdnfonts.com/css/fixedsys-excelsior-301" rel="stylesheet">
     <style>
-        /* IBM 3270: The actual IBM mainframe terminal font (SIL OFL) */
+        /* JH_Fallout: Pip-Boy 2000 font from Fallout 1, 2 & Tactics */
         @font-face {
-            font-family: 'IBM 3270';
-            src: url('/static/fonts/3270-Regular.woff') format('woff'),
-                 url('/static/fonts/3270-Regular.ttf') format('truetype');
+            font-family: 'JH Fallout';
+            src: url('/static/fonts/JH_Fallout.woff') format('woff'),
+                 url('/static/fonts/JH_Fallout.ttf') format('truetype');
             font-weight: 400;
             font-style: normal;
             font-display: swap;
@@ -35,7 +37,7 @@
             --score-mid: #d4a24e;
             --score-low: #6a7080;
             --font-display: 'Monofonto', monospace;
-            --font-body: 'IBM 3270', monospace;
+            --font-body: 'Fixedsys Excelsior 3.01', monospace;
         }
 
         /* ── Reset & Base ── */
@@ -45,7 +47,7 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             font-family: var(--font-body);
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.6;
             min-height: 100vh;
         }
@@ -250,9 +252,49 @@
             background: var(--bg-answer);
             border: 2px solid var(--border-accent);
             border-radius: 4px;
-            padding: 1.5rem 1.25rem 1.25rem;
+            padding: 1.5rem 2.75rem 1.25rem;
             margin-top: 1.5rem;
             min-height: 120px;
+            --sprocket-line: calc(1rem * 1.75);
+        }
+
+        /* Tractor-feed sprocket strips */
+        .answer-panel::before,
+        .answer-panel::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1.75rem;
+            background:
+                /* The holes */
+                radial-gradient(
+                    circle 4px at 50% 50%,
+                    var(--bg-primary) 3px,
+                    rgba(0,0,0,0.08) 3px,
+                    rgba(0,0,0,0.08) 4px,
+                    transparent 4px
+                ),
+                /* Perforation line */
+                linear-gradient(
+                    to right,
+                    transparent calc(100% - 1px),
+                    rgba(0,0,0,0.1) calc(100% - 1px)
+                );
+            background-size:
+                100% var(--sprocket-line),
+                100% 100%;
+            background-position: 0 calc(var(--sprocket-line) / 2);
+            pointer-events: none;
+        }
+
+        .answer-panel::before {
+            left: 0;
+            border-right: 1px dashed rgba(0,0,0,0.08);
+        }
+        .answer-panel::after {
+            right: 0;
+            border-left: 1px dashed rgba(0,0,0,0.08);
         }
 
         .answer-label {
@@ -274,9 +316,20 @@
         #answer-content {
             color: var(--text-answer);
             font-family: var(--font-body);
-            font-size: 0.9rem;
-            line-height: 1.7;
+            font-size: 1rem;
+            line-height: 1.75;
             white-space: pre-wrap;
+            /* Greenbar paper: bands locked exactly to line-height */
+            --line-h: calc(1rem * 1.75);
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    #dde8ce 0px,
+                    #dde8ce var(--line-h),
+                    var(--bg-answer) var(--line-h),
+                    var(--bg-answer) calc(var(--line-h) * 2)
+                );
+            background-size: 100% calc(var(--line-h) * 2);
         }
 
         .error { color: var(--accent-danger); }
