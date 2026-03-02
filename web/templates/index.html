@@ -4,10 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LegacyLens - AI-Powered COBOL Insights</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Monofonto: Fallout 3/NV Pip-Boy UI font (Typodermic, free commercial) -->
+    <link href="https://fonts.cdnfonts.com/css/monofonto" rel="stylesheet">
     <style>
+        /* IBM 3270: The actual IBM mainframe terminal font (SIL OFL) */
+        @font-face {
+            font-family: 'IBM 3270';
+            src: url('/static/fonts/3270-Regular.woff') format('woff'),
+                 url('/static/fonts/3270-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
         /* ── Design Tokens ── */
         :root {
             --bg-primary: #1a1e24;
@@ -25,8 +34,8 @@
             --score-high: #4ade80;
             --score-mid: #d4a24e;
             --score-low: #6a7080;
-            --font-display: 'Share Tech Mono', monospace;
-            --font-body: 'IBM Plex Mono', monospace;
+            --font-display: 'Monofonto', monospace;
+            --font-body: 'IBM 3270', monospace;
         }
 
         /* ── Reset & Base ── */
