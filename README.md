@@ -391,6 +391,38 @@ python benchmarks/grade_responses.py --max-grades 10
 python benchmarks/llm_report.py
 ```
 
+### Ingestion Throughput Benchmark
+
+Measures the full ingestion pipeline (discover → chunk → embed → upsert) using temporary Pinecone indexes. Validates the **10,000+ LOC in <5 minutes** throughput target.
+
+```bash
+# Run for specific configs (substring match)
+python benchmarks/run_ingest_benchmark.py --configs llama,e5,small-1024-paragraph
+
+# Filter by chunking strategy
+python benchmarks/run_ingest_benchmark.py --strategies paragraph
+
+# Run all unique configs (deduplicates rerank/hybrid variants)
+python benchmarks/run_ingest_benchmark.py
+
+# Keep temp indexes after run (for inspection)
+python benchmarks/run_ingest_benchmark.py --configs llama --keep-indexes
+```
+
+Configs are deduplicated by `(provider, model, dims, strategy)` — rerank and hybrid configs share the same ingestion path as their base and are excluded automatically.
+
+#### Results (2026-03-03)
+
+Benchmark run: 3 configs, 206 files, 48,327 LOC, 1,018 chunks (paragraph strategy).
+
+| Config | Provider | Embed+Upsert | Pipeline Total | LOC/s | Result |
+|---|---|--:|--:|--:|---|
+| **e5-1024-paragraph** | Pinecone | 17.0s | 17.1s | **2,819** | PASS |
+| **llama-1024-paragraph** (default) | Pinecone | 40.7s | 40.8s | **1,184** | PASS |
+| **small-1024-paragraph** | OpenAI | 52.3s | 52.4s | **922** | PASS |
+
+All configs pass the target with significant margin. Discovery (<1ms) and chunking (0.1s) are negligible — embed+upsert dominates. Index creation (~6s) is excluded from throughput as infrastructure overhead. Pinecone integrated models (e5, llama) are 1.3-3x faster than OpenAI due to server-side embedding.
+
 ### Running Retrieval Benchmarks
 
 ```bash
@@ -436,6 +468,7 @@ legacylens/
 │   ├── queries_suggestions.py # 209 auto-extracted suggestion queries
 │   ├── ingest_all.py          # Multi-index ingestion (OpenAI + Pinecone + sparse)
 │   ├── run_benchmark.py       # Retrieval benchmark runner (latency + relevance)
+│   ├── run_ingest_benchmark.py # Ingestion throughput benchmark (LOC/s target)
 │   ├── report.py              # Retrieval results analysis and summary tables
 │   ├── llm_config.py          # LLM model registry + multi-provider call abstraction
 │   ├── run_llm_benchmark.py   # Phase 1: LLM response generation + latency
