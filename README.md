@@ -72,6 +72,7 @@ cp .env.example .env
 | Variable | Required | Description |
 |---|---|---|
 | `OPENAI_API_KEY` | Yes | OpenAI API key for embeddings and chat |
+| `OPENROUTER_API_KEY` | No | OpenRouter API key for non-OpenAI models (Claude, Gemini, Llama, etc.) |
 | `PINECONE_API_KEY` | Yes | Pinecone API key |
 | `PINECONE_INDEX_NAME` | No | Index name (default: `legacylens-bench-llama-1024-paragraph`) |
 | `CARDDEMO_PATH` | For ingestion | Path to CardDemo `app/` directory |

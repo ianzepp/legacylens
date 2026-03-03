@@ -39,17 +39,21 @@ MAX_RETRIES = 3
 RETRY_BACKOFF = [2, 8, 32]
 
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
 def parse_model_spec(spec: str) -> LLMConfig:
     """Parse a 'provider:model_id' string into an LLMConfig.
 
     Examples:
         'openai:gpt-4o-mini' -> LLMConfig(name='gpt-4o-mini', provider='openai', ...)
         'anthropic:claude-sonnet-4-20250514' -> LLMConfig(name='claude-sonnet-4-20250514', ...)
+        'openrouter:google/gemini-2.5-flash' -> LLMConfig(name='google/gemini-2.5-flash', ...)
     """
     parts = spec.split(":", 1)
-    if len(parts) != 2 or parts[0] not in ("openai", "anthropic"):
+    if len(parts) != 2 or parts[0] not in ("openai", "anthropic", "openrouter"):
         raise ValueError(
-            f"Invalid model spec '{spec}'. Expected 'openai:<model>' or 'anthropic:<model>'"
+            f"Invalid model spec '{spec}'. Expected 'openai:<model>', 'anthropic:<model>', or 'openrouter:<model>'"
         )
     provider, model_id = parts
     return LLMConfig(name=model_id, provider=provider, model_id=model_id)
@@ -87,6 +91,8 @@ def _call_provider(
     """Dispatch to the appropriate provider API."""
     if config.provider == "openai":
         return _call_openai(config, system_prompt, user_prompt)
+    elif config.provider == "openrouter":
+        return _call_openrouter(config, system_prompt, user_prompt)
     elif config.provider == "anthropic":
         return _call_anthropic(config, system_prompt, user_prompt)
     else:
@@ -113,6 +119,27 @@ def _call_openai(
         kwargs["temperature"] = config.temperature
         kwargs["max_tokens"] = config.max_tokens
     response = client.chat.completions.create(**kwargs)
+    return response.choices[0].message.content
+
+
+def _call_openrouter(
+    config: LLMConfig, system_prompt: str, user_prompt: str
+) -> str:
+    """Call an OpenRouter model using the OpenAI SDK."""
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+        base_url=OPENROUTER_BASE_URL,
+    )
+    response = client.chat.completions.create(
+        model=config.model_id,
+        max_tokens=config.max_tokens,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
     return response.choices[0].message.content
 
 

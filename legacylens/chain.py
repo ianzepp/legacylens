@@ -1,5 +1,6 @@
 """LangChain RAG chain for answering questions about COBOL code."""
 
+import os
 import time
 
 import tiktoken
@@ -9,6 +10,8 @@ from langchain_openai import ChatOpenAI
 
 from .config import settings
 from .retriever import retrieve
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 _encoder = None
 
@@ -53,6 +56,26 @@ def _format_context(results: list) -> str:
             f"{r.content}\n"
         )
     return "\n".join(parts)
+
+
+def _is_openrouter_model(model: str) -> bool:
+    """Models with a '/' are OpenRouter provider/model format."""
+    return "/" in model
+
+
+def _build_llm(model: str, streaming: bool = False) -> ChatOpenAI:
+    """Build a ChatOpenAI instance, routing to OpenRouter if model contains '/'."""
+    kwargs: dict = {"model": model, "streaming": streaming}
+
+    if _is_openrouter_model(model):
+        kwargs["api_key"] = settings.openrouter_api_key
+        kwargs["base_url"] = OPENROUTER_BASE_URL
+    else:
+        kwargs["api_key"] = settings.openai_api_key
+        if not model.startswith("gpt-5"):
+            kwargs["temperature"] = 0
+
+    return ChatOpenAI(**kwargs)
 
 
 def _serialize_source(result) -> dict:
@@ -103,15 +126,7 @@ def ask_stream(
     input_text = SYSTEM_PROMPT.replace("{context}", context) + question
     tokens_in = _count_tokens(input_text)
 
-    # GPT-5+ models only support temperature=1
-    llm_kwargs: dict = {
-        "model": effective_model,
-        "api_key": settings.openai_api_key,
-        "streaming": True,
-    }
-    if not effective_model.startswith("gpt-5"):
-        llm_kwargs["temperature"] = 0
-    llm = ChatOpenAI(**llm_kwargs)
+    llm = _build_llm(effective_model, streaming=True)
 
     chain = prompt | llm | StrOutputParser()
     answer_chunks = []
@@ -166,14 +181,7 @@ def ask(
     input_text = SYSTEM_PROMPT.replace("{context}", context) + question
     tokens_in = _count_tokens(input_text)
 
-    # GPT-5+ models only support temperature=1
-    llm_kwargs: dict = {
-        "model": effective_model,
-        "api_key": settings.openai_api_key,
-    }
-    if not effective_model.startswith("gpt-5"):
-        llm_kwargs["temperature"] = 0
-    llm = ChatOpenAI(**llm_kwargs)
+    llm = _build_llm(effective_model)
 
     chain = prompt | llm | StrOutputParser()
     answer = chain.invoke({"context": context, "question": question})

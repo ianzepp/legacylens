@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     openai_api_key: str = ""
+    openrouter_api_key: str = ""
     pinecone_api_key: str = ""
     pinecone_index_name: str = "legacylens-bench-llama-1024-paragraph"
     pinecone_namespace: str = "carddemo"
