@@ -60,6 +60,8 @@ cp .env.example .env
 | `PINECONE_INDEX_NAME` | No | Index name (default: `legacylens`) |
 | `CARDDEMO_PATH` | For ingestion | Path to CardDemo `app/` directory |
 | `USE_OLLAMA` | No | Set `true` to use Ollama for local embeddings |
+| `LAYER_1_CACHE` | No | Enable search result cache (default: `true`) |
+| `LAYER_2_CACHE` | No | Enable LLM answer cache (default: `true`) |
 
 ## Usage
 
@@ -124,6 +126,50 @@ CARDDEMO_PATH=/path/to/carddemo/app LEGACYLENS_RUN_LIVE_TESTS=1 pytest tests/ -v
 ```
 
 146 tests covering parser, chunker, ingestion, vector store, chain formatting, live retrieval quality, and benchmark infrastructure.
+
+## Caching
+
+A two-layer cache eliminates redundant API calls for the 209 pre-defined suggestion queries that users can click in the UI.
+
+### Layer 1: Search Results (pre-computed, persistent)
+
+All 209 suggestion queries are pre-run against Pinecone and saved as `web/cache/search_cache.json` (6.2 MB). This file ships with the repo and is loaded at startup — cached suggestion queries skip the Pinecone vector search entirely (0ms vs ~400ms).
+
+```bash
+# Regenerate after index changes
+python scripts/warmup_cache.py
+```
+
+### Layer 2: LLM Answers (in-memory, per-model)
+
+LLM responses are cached in-memory keyed by `(question, model)`. The first time a question is asked with a given model, the LLM runs live and the result is cached. Subsequent identical requests return instantly. Switching models (e.g., GPT-4o-mini → GPT-4o) creates separate cache entries, so you can compare model responses without re-running previously seen ones.
+
+The LLM cache resets on app restart (it is not persisted to disk).
+
+### Cache Controls
+
+Both layers are enabled by default. Disable independently via environment variables:
+
+```bash
+LAYER_1_CACHE=false uvicorn web.app:app  # skip search cache, always hit Pinecone
+LAYER_2_CACHE=false uvicorn web.app:app  # skip LLM cache, always run the model
+```
+
+Cache status is available at `GET /api/cache-status`:
+```json
+{"layer_1_enabled": true, "layer_2_enabled": true, "cached_queries": 209, "cached_answers": 12}
+```
+
+### Cache Behavior by Request Type
+
+| Request | Layer 1 (search) | Layer 2 (LLM) | Latency |
+|---|---|---|---|
+| Suggestion click (search only) | Hit | — | ~0ms |
+| Suggestion click (ask, first time) | Hit | Miss → cached | ~3s (LLM only) |
+| Suggestion click (ask, repeat) | Hit | Hit | ~0ms |
+| Same question, different model | Hit | Miss → cached | ~3s (LLM only) |
+| Custom query (not in suggestions) | Miss | Miss → cached | ~3-5s (full pipeline) |
+| Any query with file_type filter | Bypass | Bypass | ~3-5s (full pipeline) |
 
 ## Benchmarking
 
