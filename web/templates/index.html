@@ -1009,7 +1009,7 @@
                 btn.addEventListener('click', function() {
                     document.getElementById('question').value = text;
                     panel.classList.remove('open');
-                    document.getElementById('question').focus();
+                    document.getElementById('query-form').requestSubmit();
                 });
                 list.appendChild(btn);
             });
