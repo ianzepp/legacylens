@@ -24,6 +24,9 @@ if os.path.isfile(_cache_file):
     with open(_cache_file) as _f:
         _search_cache = json.load(_f)
 
+# In-memory LLM answer cache, keyed by (question, model)
+_ask_cache: dict[tuple[str, str], dict] = {}
+
 
 def _get_cached_results(query: str, top_k: int, file_type: str | None) -> list[dict] | None:
     """Return cached search results if available for this query with default params."""
@@ -49,16 +52,27 @@ async def api_ask(request: Request):
     if not question.strip():
         return {"error": "Question is required"}
 
+    # Check LLM answer cache (keyed by question + model)
+    from legacylens.config import settings
+    effective_model = model or settings.chat_model
+    cache_key = (question, effective_model)
+    if cache_key in _ask_cache and not file_type:
+        return _ask_cache[cache_key]
+
     from legacylens.chain import ask
     from legacylens.models import QueryResult
 
     cached = _get_cached_results(question, top_k, file_type)
     if cached is not None:
-        # Convert cached dicts back to QueryResult objects for the chain
         results = [QueryResult(**r) for r in cached]
         result = ask(question, top_k=top_k, file_type=file_type, model=model, results=results)
     else:
         result = ask(question, top_k=top_k, file_type=file_type, model=model)
+
+    # Cache the LLM answer for future requests
+    if not file_type:
+        _ask_cache[cache_key] = result
+
     return result
 
 
@@ -103,7 +117,10 @@ async def api_search(request: Request):
 
 @app.get("/api/cache-status")
 async def cache_status():
-    return {"cached_queries": len(_search_cache)}
+    return {
+        "cached_queries": len(_search_cache),
+        "cached_answers": len(_ask_cache),
+    }
 
 
 @app.post("/api/file")
