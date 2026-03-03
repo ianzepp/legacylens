@@ -123,16 +123,26 @@ async def api_ask_stream(request: Request):
     else:
         results = None
 
+    _sentinel = object()
+
+    def _next_chunk(gen):
+        """Wrapper around next() that returns a sentinel instead of raising StopIteration.
+
+        StopIteration cannot propagate through asyncio.to_thread into an async
+        generator — Python converts it to RuntimeError, silently killing the stream.
+        """
+        return next(gen, _sentinel)
+
     async def event_stream():
         full_answer = []
         sources = []
         gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model, results=results)
 
         while True:
-            try:
-                typ, data = await asyncio.to_thread(next, gen)
-            except StopIteration:
+            result = await asyncio.to_thread(_next_chunk, gen)
+            if result is _sentinel:
                 break
+            typ, data = result
             if typ == "token":
                 full_answer.append(data)
                 yield f"data: {json.dumps(data)}\n\n"

@@ -718,6 +718,13 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
+                <div class="config-group">
+                    <label class="config-label">Stream</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cfg-stream" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
         </form>
 
@@ -1103,64 +1110,85 @@
             const model = document.getElementById('cfg-model').value;
             const l1Cache = document.getElementById('cfg-l1cache').checked;
             const l2Cache = document.getElementById('cfg-l2cache').checked;
+            const useStream = document.getElementById('cfg-stream').checked;
 
             const btn = document.getElementById('btn-submit');
             btn.disabled = true;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('answer-box').style.display = 'none';
 
+            const payload = {
+                question,
+                file_type: fileType || null,
+                top_k: topK,
+                model: model,
+                l1_cache: l1Cache,
+                l2_cache: l2Cache,
+            };
+
             try {
-                const resp = await fetch('/api/ask/stream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question,
-                        file_type: fileType || null,
-                        top_k: topK,
-                        model: model,
-                        l1_cache: l1Cache,
-                        l2_cache: l2Cache,
-                    }),
-                });
+                if (useStream) {
+                    const resp = await fetch('/api/ask/stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
 
-                if (!resp.ok) {
-                    throw new Error('Server returned ' + resp.status);
-                }
+                    if (!resp.ok) {
+                        throw new Error('Server returned ' + resp.status);
+                    }
 
-                const reader = resp.body.getReader();
-                const decoder = new TextDecoder();
-                let answerText = '';
-                let buffer = '';
-                let sourcesEvent = false;
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let answerText = '';
+                    let buffer = '';
+                    let sourcesEvent = false;
 
-                document.getElementById('answer-content').textContent = '';
-                document.getElementById('answer-box').style.display = 'block';
-                document.getElementById('loading').style.display = 'none';
+                    document.getElementById('answer-content').textContent = '';
+                    document.getElementById('answer-box').style.display = 'block';
+                    document.getElementById('loading').style.display = 'none';
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
 
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
 
-                    for (const line of lines) {
-                        if (sourcesEvent && line.startsWith('data: ')) {
-                            const sources = JSON.parse(line.slice(6));
-                            renderSources(sources);
-                            sourcesEvent = false;
-                        } else if (line.startsWith('event: sources')) {
-                            sourcesEvent = true;
-                        } else if (line.startsWith('event: error')) {
-                            // Next data line has error message
-                            sourcesEvent = false;
-                        } else if (line.startsWith('data: ')) {
-                            const token = JSON.parse(line.slice(6));
-                            answerText += token;
-                            document.getElementById('answer-content').textContent = answerText;
+                        for (const line of lines) {
+                            if (sourcesEvent && line.startsWith('data: ')) {
+                                const sources = JSON.parse(line.slice(6));
+                                renderSources(sources);
+                                sourcesEvent = false;
+                            } else if (line.startsWith('event: sources')) {
+                                sourcesEvent = true;
+                            } else if (line.startsWith('event: error')) {
+                                sourcesEvent = false;
+                            } else if (line.startsWith('data: ')) {
+                                const token = JSON.parse(line.slice(6));
+                                answerText += token;
+                                document.getElementById('answer-content').textContent = answerText;
+                            }
                         }
                     }
+                } else {
+                    const resp = await fetch('/api/ask', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await resp.json();
+
+                    if (data.error) {
+                        document.getElementById('answer-content').innerHTML =
+                            '<span class="error">' + escapeHtml(data.error) + '</span>';
+                    } else {
+                        document.getElementById('answer-content').textContent = data.answer;
+                    }
+
+                    renderSources(data.sources || []);
+                    document.getElementById('answer-box').style.display = 'block';
                 }
 
             } catch (err) {
