@@ -84,6 +84,14 @@ def _query_openai_index(
     return results, elapsed
 
 
+# Models with large context windows can use inline reranking (single API call).
+# Models with small windows (512 tokens) need two-step: fetch then rerank with truncation.
+_INLINE_RERANK_MODELS = {"cohere-rerank-3.5"}  # 4096 token limit
+# COBOL tokenizes poorly (~2 chars/token due to hyphenated identifiers).
+# 512 token limit - ~50 tokens for query = ~460 tokens for doc = ~920 chars.
+_RERANK_TRUNCATE_CHARS = 900
+
+
 def _parse_search_hits(response) -> list[dict]:
     """Extract result dicts from a Pinecone search response."""
     results = []
@@ -100,6 +108,73 @@ def _parse_search_hits(response) -> list[dict]:
     return results
 
 
+def _parse_search_hits_with_text(response) -> list[dict]:
+    """Extract result dicts including chunk_text for two-step reranking."""
+    results = []
+    for hit in response.result.hits:
+        fields = hit.fields or {}
+        results.append({
+            "id": hit.id,
+            "score": hit.score,
+            "file_name": fields.get("file_name", ""),
+            "name": fields.get("name", ""),
+            "chunk_type": fields.get("chunk_type", ""),
+            "file_type": fields.get("file_type", ""),
+            TEXT_FIELD: fields.get(TEXT_FIELD, ""),
+        })
+    return results
+
+
+def _rerank_with_inference(
+    pc: Pinecone,
+    model: str,
+    query: str,
+    hits: list[dict],
+    top_n: int,
+    truncate_chars: int = _RERANK_TRUNCATE_CHARS,
+) -> list[dict]:
+    """Rerank hits using pc.inference.rerank() with truncated text.
+
+    Truncates chunk_text to stay within model token limits.
+    Preserves preamble (file/paragraph names) at the start of the text.
+    Retries with progressively shorter text on token limit errors.
+    """
+    from pinecone.exceptions.exceptions import PineconeApiException
+
+    limit = truncate_chars
+    for attempt in range(4):
+        documents = [
+            {"id": doc["id"], TEXT_FIELD: doc.get(TEXT_FIELD, "")[:limit]}
+            for doc in hits
+        ]
+        try:
+            rerank_response = pc.inference.rerank(
+                model=model,
+                query=query,
+                documents=documents,
+                rank_fields=[TEXT_FIELD],
+                top_n=top_n,
+            )
+            break
+        except PineconeApiException as e:
+            if "exceeds the maximum token limit" in str(e) and attempt < 3:
+                limit = int(limit * 0.6)  # aggressive backoff
+                continue
+            raise
+    results = []
+    for item in rerank_response.data:
+        doc = hits[item.index]
+        results.append({
+            "id": doc["id"],
+            "score": item.score,
+            "file_name": doc["file_name"],
+            "name": doc["name"],
+            "chunk_type": doc["chunk_type"],
+            "file_type": doc["file_type"],
+        })
+    return results
+
+
 def _query_pinecone_integrated(
     pc: Pinecone,
     config: BenchmarkConfig,
@@ -108,31 +183,48 @@ def _query_pinecone_integrated(
 ) -> tuple[list[dict], float]:
     """Query a Pinecone integrated-embedding index.
 
-    Supports optional reranking via config.rerank_model.
-    Over-fetches at 2× top_k when reranking, then reranks down to rerank_top_n.
+    Reranking strategy depends on model token limits:
+    - Large-context models (cohere-rerank-3.5): inline reranking via index.search()
+    - Small-context models (pinecone-rerank-v0, bge): two-step fetch + inference.rerank()
     """
     start = time.perf_counter()
 
     index = pc.Index(config.index_name)
     fetch_k = top_k * 2 if config.rerank_model else top_k
 
-    rerank = None
+    if config.rerank_model and config.rerank_model in _INLINE_RERANK_MODELS:
+        # Single API call — model can handle our chunk sizes
+        response = index.search(
+            namespace=NAMESPACE,
+            query=SearchQuery(inputs={"text": query}, top_k=fetch_k),
+            rerank=SearchRerank(
+                model=config.rerank_model,
+                rank_fields=[TEXT_FIELD],
+                top_n=config.rerank_top_n or top_k,
+            ),
+        )
+        elapsed = time.perf_counter() - start
+        return _parse_search_hits(response), elapsed
+
     if config.rerank_model:
-        rerank = SearchRerank(
-            model=config.rerank_model,
-            rank_fields=[TEXT_FIELD],
+        # Two-step: fetch, then rerank with truncated text
+        response = index.search(
+            namespace=NAMESPACE,
+            query=SearchQuery(inputs={"text": query}, top_k=fetch_k),
+        )
+        hits = _parse_search_hits_with_text(response)
+        results = _rerank_with_inference(
+            pc, config.rerank_model, query, hits,
             top_n=config.rerank_top_n or top_k,
         )
+        elapsed = time.perf_counter() - start
+        return results, elapsed
 
+    # No reranking — plain search
     response = index.search(
         namespace=NAMESPACE,
-        query=SearchQuery(
-            inputs={"text": query},
-            top_k=fetch_k,
-        ),
-        rerank=rerank,
+        query=SearchQuery(inputs={"text": query}, top_k=fetch_k),
     )
-
     elapsed = time.perf_counter() - start
     return _parse_search_hits(response), elapsed
 
@@ -148,7 +240,7 @@ def _query_hybrid(
     1. Query the dense index (llama) for top_k * 2 results
     2. Query the sparse index for top_k * 2 results
     3. Merge by record ID (union, deduplicate — keep higher score)
-    4. Rerank merged set down to rerank_top_n
+    4. Rerank merged set via inference API with truncated text
     """
     start = time.perf_counter()
 
@@ -174,7 +266,7 @@ def _query_hybrid(
         fields = hit.fields or {}
         merged[hit.id] = {
             "id": hit.id,
-            "score": hit.score,
+            "score": hit.score or 0.0,
             "file_name": fields.get("file_name", ""),
             "name": fields.get("name", ""),
             "chunk_type": fields.get("chunk_type", ""),
@@ -183,10 +275,11 @@ def _query_hybrid(
         }
     for hit in sparse_response.result.hits:
         fields = hit.fields or {}
-        if hit.id not in merged or hit.score > merged[hit.id]["score"]:
+        sparse_score = hit.score or 0.0
+        if hit.id not in merged or sparse_score > merged[hit.id]["score"]:
             merged[hit.id] = {
                 "id": hit.id,
-                "score": hit.score,
+                "score": sparse_score,
                 "file_name": fields.get("file_name", ""),
                 "name": fields.get("name", ""),
                 "chunk_type": fields.get("chunk_type", ""),
@@ -194,34 +287,13 @@ def _query_hybrid(
                 TEXT_FIELD: fields.get(TEXT_FIELD, ""),
             }
 
-    # Rerank merged results using Pinecone inference API
     merged_list = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
     rerank_top_n = config.rerank_top_n or top_k
 
     if config.rerank_model and len(merged_list) > 0:
-        documents = [
-            {"id": doc["id"], TEXT_FIELD: doc.get(TEXT_FIELD, "")}
-            for doc in merged_list
-        ]
-        rerank_response = pc.inference.rerank(
-            model=config.rerank_model,
-            query=query,
-            documents=documents,
-            rank_fields=[TEXT_FIELD],
-            top_n=rerank_top_n,
+        results = _rerank_with_inference(
+            pc, config.rerank_model, query, merged_list, top_n=rerank_top_n,
         )
-        # Rebuild results in reranked order
-        results = []
-        for item in rerank_response.data:
-            doc = merged_list[item.index]
-            results.append({
-                "id": doc["id"],
-                "score": item.score,
-                "file_name": doc["file_name"],
-                "name": doc["name"],
-                "chunk_type": doc["chunk_type"],
-                "file_type": doc["file_type"],
-            })
     else:
         results = [
             {k: v for k, v in doc.items() if k != TEXT_FIELD}
