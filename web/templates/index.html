@@ -497,19 +497,51 @@
             font-family: var(--font-body);
             font-size: 1rem;
             line-height: 1.75;
-            white-space: pre-wrap;
-            /* Greenbar paper: bands locked exactly to line-height */
-            --line-h: calc(1rem * 1.75);
-            background:
-                repeating-linear-gradient(
-                    to bottom,
-                    #dde8ce 0px,
-                    #dde8ce var(--line-h),
-                    var(--bg-answer) var(--line-h),
-                    var(--bg-answer) calc(var(--line-h) * 2)
-                );
-            background-size: 100% calc(var(--line-h) * 2);
         }
+
+        /* Markdown element styles inside answer */
+        #answer-content p { margin: 0.5em 0; }
+        #answer-content p:first-child { margin-top: 0; }
+        #answer-content p:last-child { margin-bottom: 0; }
+        #answer-content h1, #answer-content h2, #answer-content h3, #answer-content h4 {
+            color: var(--text-answer);
+            font-family: var(--font-display);
+            margin: 0.8em 0 0.3em;
+        }
+        #answer-content h1 { font-size: 1.3rem; }
+        #answer-content h2 { font-size: 1.15rem; }
+        #answer-content h3 { font-size: 1.05rem; }
+        #answer-content h4 { font-size: 1rem; }
+        #answer-content h1:first-child, #answer-content h2:first-child,
+        #answer-content h3:first-child, #answer-content h4:first-child { margin-top: 0; }
+        #answer-content code {
+            font-family: var(--font-mono);
+            font-size: 0.88em;
+            background: rgba(0, 0, 0, 0.08);
+            padding: 0.15em 0.35em;
+            border-radius: 3px;
+        }
+        #answer-content pre {
+            background: #2b2b2b;
+            border: 1px solid var(--border-panel);
+            border-radius: 4px;
+            padding: 0.8em 1em;
+            overflow-x: auto;
+            margin: 0.6em 0;
+        }
+        #answer-content pre code {
+            background: none;
+            padding: 0;
+            color: #c8d6c0;
+            font-size: 0.85em;
+        }
+        #answer-content ul, #answer-content ol {
+            margin: 0.4em 0;
+            padding-left: 1.5em;
+        }
+        #answer-content li { margin: 0.2em 0; }
+        #answer-content strong { color: var(--text-answer); }
+        #answer-content a { color: var(--accent-green); }
 
         .error { color: var(--accent-danger); }
 
@@ -678,6 +710,7 @@
             .answer-panel { padding: 1.25rem 1rem 1rem; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -801,6 +834,8 @@
     </div>
 
     <script>
+        marked.setOptions({ breaks: true });
+
         const SUGGESTIONS = [
             // ── User Management ──
             "What does COUSR00C do?",
@@ -1248,7 +1283,7 @@
                                 try {
                                     const token = JSON.parse(raw);
                                     answerText += token;
-                                    document.getElementById('answer-content').textContent = answerText;
+                                    document.getElementById('answer-content').innerHTML = marked.parse(answerText);
                                 } catch(_) {}
                             }
                         }
@@ -1270,7 +1305,7 @@
                         document.getElementById('answer-content').innerHTML =
                             '<span class="error">' + escapeHtml(data.error) + '</span>';
                     } else {
-                        document.getElementById('answer-content').textContent = data.answer;
+                        document.getElementById('answer-content').innerHTML = marked.parse(data.answer);
                     }
 
                     renderSources(data.sources || []);
