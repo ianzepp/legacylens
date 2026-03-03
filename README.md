@@ -2,6 +2,22 @@
 
 A RAG-powered system that makes legacy COBOL codebases queryable via natural language. Built for the AWS CardDemo credit card management application (~40K LOC across 206 mainframe source files).
 
+**Live demo:** https://web-production-3455.up.railway.app/
+
+## MVP Requirements
+
+| # | Requirement | Status | Evidence |
+|--:|---|---|---|
+| 1 | Ingest at least one legacy codebase | Done | AWS CardDemo: 206 files, ~40K LOC (COBOL, copybooks, BMS, JCL) |
+| 2 | Chunk code files with syntax-aware splitting | Done | Paragraph-level COBOL, DFHMDI for BMS, EXEC steps for JCL, 01-level splits for large DATA DIVISIONs (`chunker.py`) |
+| 3 | Generate embeddings for all chunks | Done | 1,018 chunks embedded via Pinecone integrated `llama-text-embed-v2` (1024d) |
+| 4 | Store embeddings in a vector database | Done | Pinecone Serverless with rich metadata (file path, line numbers, COPY refs, CALL targets) |
+| 5 | Implement semantic search across the codebase | Done | Cosine similarity search with file type filtering; 0.88 relevance on 40 curated queries |
+| 6 | Natural language query interface (CLI or web) | Done | Typer CLI (`legacylens ask/search`) + FastAPI web UI with 209 suggestion queries |
+| 7 | Return relevant code snippets with file/line references | Done | Every result includes file name, start/end line, chunk type, relevance score |
+| 8 | Basic answer generation using retrieved context | Done | LangChain RAG chain with GPT-4o-mini; grounded answers with `[File:Line-Line]` citations |
+| 9 | Deployed and publicly accessible | Done | https://web-production-3455.up.railway.app/ |
+
 ## Architecture
 
 ```
