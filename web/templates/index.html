@@ -621,32 +621,7 @@
 
         .source-item.expanded .source-content { display: block; }
 
-        .btn-context {
-            display: inline-block;
-            margin-top: 0.5rem;
-            background: transparent;
-            border: 1px solid var(--accent-green);
-            border-radius: 3px;
-            padding: 0.3rem 0.7rem;
-            color: var(--accent-green);
-            font-family: var(--font-display);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            cursor: pointer;
-            transition: background 0.2s, color 0.2s;
-        }
-
-        .btn-context:hover {
-            background: var(--accent-green);
-            color: var(--bg-primary);
-        }
-
-        .btn-context:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
+        .btn-context,
         .btn-file {
             display: inline-block;
             margin-top: 0.5rem;
@@ -664,9 +639,19 @@
             transition: background 0.2s, color 0.2s;
         }
 
+        .btn-context {
+            margin-right: 0.5rem;
+        }
+
+        .btn-context:hover,
         .btn-file:hover {
             background: var(--accent-green);
             color: var(--bg-primary);
+        }
+
+        .btn-context:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         /* ── Footer ── */
@@ -1197,6 +1182,8 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('answer-box').style.display = 'none';
             document.getElementById('perf-bar').classList.remove('visible');
+            document.getElementById('sources-list').innerHTML = '';
+            document.getElementById('source-count').textContent = '0';
 
             const payload = {
                 question,
