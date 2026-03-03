@@ -162,6 +162,77 @@
         .btn-analyze:hover { background: var(--accent-teal); }
         .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* ── Suggest Button ── */
+        .btn-suggest {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 4px;
+            padding: 0.75rem 1.5rem;
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-suggest:hover { background: var(--accent-teal); }
+
+        /* ── Suggestions Panel ── */
+        .suggestions-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, padding 0.35s ease, margin 0.35s ease;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 4px;
+            padding: 0 1rem;
+            margin-bottom: 0;
+        }
+
+        .suggestions-panel.open {
+            max-height: 300px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .suggestions-label {
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-label);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        .suggestions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .suggestion-item {
+            background: transparent;
+            border: 1px solid var(--border-panel);
+            border-radius: 3px;
+            padding: 0.45rem 0.75rem;
+            color: var(--accent-green);
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(74, 222, 128, 0.08);
+            border-color: var(--accent-green);
+        }
+
         /* ── Config Row ── */
         .config-row {
             display: flex;
@@ -485,6 +556,7 @@
         @media (max-width: 640px) {
             .header h1 { font-size: 1.5rem; }
             .search-row { flex-direction: column; }
+            .btn-suggest { width: 100%; }
             .btn-analyze { width: 100%; }
             .config-row { flex-direction: column; }
             .config-group.flex-1 { min-width: 100%; }
@@ -506,6 +578,7 @@
         <!-- Search -->
         <form id="query-form" onsubmit="return handleSubmit(event)">
             <div class="search-row">
+                <button type="button" class="btn-suggest" onclick="toggleSuggestions()">Suggest</button>
                 <input
                     type="text"
                     id="question"
@@ -515,6 +588,12 @@
                     autofocus
                 >
                 <button type="submit" class="btn-analyze" id="btn-submit">Analyze</button>
+            </div>
+
+            <!-- Suggestions -->
+            <div class="suggestions-panel" id="suggestions-panel">
+                <div class="suggestions-label">Suggested Questions</div>
+                <div class="suggestions-list" id="suggestions-list"></div>
             </div>
 
             <!-- Config -->
@@ -591,6 +670,265 @@
     </div>
 
     <script>
+        const SUGGESTIONS = [
+            // ── User Management ──
+            "What does COUSR00C do?",
+            "How does the user list screen work in COUSR00C?",
+            "How does COUSR01C handle user inquiry?",
+            "Explain the user add logic in COUSR02C",
+            "How does COUSR03C update user records?",
+            "How is the USRSEC user security file accessed?",
+            "What is the user authentication flow in CardDemo?",
+            "How are user roles and permissions managed?",
+            "How does the sign-on screen COSGN00C work?",
+            "What validation happens during user login?",
+            // ── Account Processing ──
+            "What does COACTUPC do for account updates?",
+            "How does COACTVWC display account activity?",
+            "What is the account inquiry logic in CBACT01C?",
+            "How does CBACT02C add new accounts?",
+            "How does CBACT03C modify account records?",
+            "Explain the DB2 account delete in CBACT04C",
+            "How are account balances calculated?",
+            "How is the account cross-reference file used?",
+            "What is the account record structure in CVACT01Y?",
+            "How does COACCT01 handle VSAM account operations?",
+            // ── Card Processing ──
+            "What does COCRDLIC do for card listing?",
+            "How does the card selection screen COCRDSLC work?",
+            "Explain the card update logic in COCRDUPC",
+            "How are credit card numbers validated?",
+            "What is the card record structure in CVACT02Y?",
+            "How is the card cross-reference CVACT03Y used?",
+            "What card work areas are defined in CVCRD01Y?",
+            "How does CardDemo handle card activation?",
+            "How does the card list BMS map COCRDLI work?",
+            "What card data is stored in CARDFILE?",
+            // ── Transaction Processing ──
+            "How does CBTRN01C process daily transactions?",
+            "Explain the DB2 transaction handling in CBTRN02C",
+            "What does the batch transaction program CBTRN03C do?",
+            "How does COTRN00C handle transaction inquiry?",
+            "Explain the transaction add flow in COTRN01C",
+            "How does COTRN02C display transaction details?",
+            "What does COTRTLIC do for transaction type listing?",
+            "How does COTRTUPC update transactions via DB2?",
+            "What is the transaction category balance in CVTRA01Y?",
+            "What transaction types are defined in CVTRA03Y?",
+            "How is the daily transaction file DALYTRAN used?",
+            "What is the transaction record structure in CVTRA05Y?",
+            "Explain the transaction posting logic",
+            "How are transaction amounts validated?",
+            "How does transaction reversal work?",
+            // ── Export/Import ──
+            "How does CBEXPORT export customer data?",
+            "What account export format does CBEXPORT use?",
+            "How does CBEXPORT handle cross-reference exports?",
+            "Explain the transaction export in CBEXPORT",
+            "How does CBEXPORT export card records?",
+            "What does the CBIMPORT import utility do?",
+            "How does export file creation work?",
+            "What validation does CBIMPORT perform on import?",
+            "How are export records formatted?",
+            "What is the CREATE-CUSTOMER-EXP-REC paragraph?",
+            // ── Admin & Menu ──
+            "What does the admin menu COADM01C do?",
+            "How does the menu program COMEN01C work?",
+            "Explain the bill display logic in COBIL00C",
+            "How does CORPT00C generate reports?",
+            "What is the admin transaction CA00?",
+            "What admin options are in COADM02Y?",
+            "How does the admin menu BMS screen work?",
+            "What functions are available from the main menu?",
+            "How does navigation between screens work?",
+            "What is the COBSWAIT wait command used for?",
+            // ── Date/Utility Programs ──
+            "How does CSUTLDTC handle date and time?",
+            "What does the VSAM date handler CODATE01 do?",
+            "How does CODATECN perform date conversion?",
+            "What date utilities are in CSDAT01Y?",
+            "How does CSUTLDWY format dates?",
+            "What string formatting does CSSTRPFY provide?",
+            "How does CSSETATY set screen attributes?",
+            "What lookup codes are in CSLKPCDY?",
+            "How is GENERATE-TIMESTAMP implemented?",
+            "What user utilities does CSUSR01Y provide?",
+            // ── Copybook Structures ──
+            "What is the customer record structure in CVCUS01Y?",
+            "Explain the communication area COCOM01Y",
+            "What fields are in the account record CVACT01Y?",
+            "How is the transaction category type CVTRA04Y structured?",
+            "What is in the reporting copybook CVTRA07Y?",
+            "How is the disclosure group structure CVTRA02Y used?",
+            "What message handling does CSMSG01Y provide?",
+            "What message arrays are in CSMSG02Y?",
+            "What DB2 working storage is in CSDB2RWY?",
+            "What DB2 procedures are in CSDB2RPY?",
+            // ── BMS Maps & Screens ──
+            "How is the sign-on BMS map COSGN00 structured?",
+            "What fields does the account view map COACTVW have?",
+            "How is the transaction inquiry map COTRN00 laid out?",
+            "What does the transaction add map COTRN01 contain?",
+            "How is the report display map CORPT00 structured?",
+            "What fields are on the user list map COUSR00?",
+            "How is the authorization screen COPAU00 designed?",
+            "What does the card update map COCRDUP contain?",
+            "How are BMS maps defined with DFHMSD and DFHMDI?",
+            "What screen attributes are used in the BMS maps?",
+            // ── JCL Jobs ──
+            "What does the ACCTFILE JCL job define?",
+            "How does the CARDFILE JCL set up card data?",
+            "What does the CUSTFILE JCL job do?",
+            "How does the DEFGDGB JCL define GDG backups?",
+            "What does the XREFFILE JCL create?",
+            "How does the TRANFILE JCL define transaction files?",
+            "What does the READACCT JCL job do?",
+            "How does the CLOSEFIL JCL close all files?",
+            "What does the OPENFIL JCL job open?",
+            "How does the TRANREPT JCL generate reports?",
+            "What does the CBEXPORT JCL job execute?",
+            "How does the CBIMPORT JCL run imports?",
+            "What does INTCALC calculate?",
+            "How does the POSTTRAN JCL post transactions?",
+            "What does the CREADB21 JCL create in DB2?",
+            // ── CICS Operations ──
+            "How does CardDemo use CICS LINK for program calls?",
+            "What EXEC CICS commands are most common?",
+            "How is the COMMAREA used for inter-program communication?",
+            "How do CICS screen SEND operations work?",
+            "How does CICS RECEIVE capture user input?",
+            "What CICS file control operations are used?",
+            "How are CICS response codes handled?",
+            "What CICS XCTL transfers exist between programs?",
+            "How does CICS exception handling work?",
+            "What transaction IDs (TRANIDs) are defined?",
+            // ── DB2 Operations ──
+            "How does CardDemo use EXEC SQL statements?",
+            "How is the SQLCA used for DB2 error handling?",
+            "What DB2 cursors are declared in the programs?",
+            "How are DB2 SELECT queries structured?",
+            "What DB2 INSERT operations exist?",
+            "How do DB2 UPDATE statements work in CardDemo?",
+            "How does DB2 COMMIT and ROLLBACK work?",
+            "What WHENEVER statements handle DB2 errors?",
+            "How is the NOT FOUND condition handled in DB2?",
+            "What DB2 tables does CardDemo define?",
+            // ── VSAM File Operations ──
+            "How does CardDemo use VSAM KSDS files?",
+            "What VSAM file status codes are checked?",
+            "How does STARTBR begin a VSAM browse?",
+            "How does READNEXT do sequential VSAM reads?",
+            "How does READPREV read VSAM records backward?",
+            "How does ENDBR end a VSAM browse?",
+            "What VSAM error handling patterns exist?",
+            "How does READ-CUSTOMER-RECORD fetch customer data?",
+            "How does READ-ACCOUNT-RECORD work?",
+            "How does READ-CARD-RECORD retrieve card data?",
+            // ── Paragraph/Section Patterns ──
+            "What does the MAIN-PARA entry point do?",
+            "How does 0000-MAIN-PROCESSING work in batch programs?",
+            "What happens in the 1000-INITIALIZE paragraph?",
+            "How does PROCESS-ENTER-KEY handle user input?",
+            "How do PF key handlers like PROCESS-PF7-KEY work?",
+            "What does POPULATE-USER-DATA load?",
+            "How does POPULATE-HEADER-INFO set screen headers?",
+            "What does INITIALIZE-USER-DATA reset?",
+            "How does Z-ABEND-PROGRAM handle abnormal ends?",
+            "What does Z-DISPLAY-IO-STATUS show?",
+            // ── Data Elements ──
+            "What is WS-PGMNAME used for?",
+            "How is WS-TRANID set in each program?",
+            "What does WS-MESSAGE contain?",
+            "How are WS-RESP-CD and WS-REAS-CD used?",
+            "What record counters track in WS-REC-COUNT?",
+            "How is WS-ERR-FLG used for error detection?",
+            "How does WS-PAGE-NUM control pagination?",
+            "What OCCURS clause arrays exist in the programs?",
+            "How are level 88 conditions used in CardDemo?",
+            "What is in the DFHCOMMAREA linkage section?",
+            // ── Cross-Cutting Concerns ──
+            "How does error handling work across COBOL programs?",
+            "What COPY statements are shared between programs?",
+            "How does RETURN-TO-PREV-SCREEN navigate on errors?",
+            "What PERFORM targets are common across programs?",
+            "How does page-forward and page-backward scrolling work?",
+            "What data validation patterns are reused?",
+            "How do programs pass data via the communication area?",
+            "What naming conventions do the COBOL programs follow?",
+            "How are WORKING-STORAGE sections organized?",
+            "What is the overall program call hierarchy?",
+            // ── Business Domain ──
+            "What is the end-to-end credit card transaction flow?",
+            "How does CardDemo handle interest calculation?",
+            "What reporting capabilities does the application have?",
+            "How does the daily transaction batch cycle work?",
+            "What reconciliation processes exist?",
+            "How are transaction categories and types classified?",
+            "What is the customer-account-card relationship?",
+            "How does CardDemo handle regulatory reporting?",
+            "What audit trail capabilities exist?",
+            "How does the application handle exception processing?",
+            // ── Architecture & Integration ──
+            "What is the overall architecture of the CardDemo system?",
+            "How many COBOL programs make up CardDemo?",
+            "What batch vs online programs exist?",
+            "How do online CICS programs differ from batch programs?",
+            "What is the relationship between BMS maps and COBOL programs?",
+            "How does the ENVIRONMENT DIVISION configure file access?",
+            "What FILE SECTION definitions exist in the DATA DIVISION?",
+            "How is the PROCEDURE DIVISION structured across programs?",
+            "What IDENTIFICATION DIVISION metadata is recorded?",
+            "How do copybooks reduce code duplication?",
+            // ── Specific Operations ──
+            "How does LOOKUP-XREF perform cross-reference lookups?",
+            "What does CREATE-ACCOUNT-EXP-REC format for export?",
+            "How does CREATE-XREF-EXPORT-RECORD work?",
+            "What does CREATE-CARD-EXPORT-RECORD output?",
+            "How does SEND-USRLST-SCREEN transmit the user list?",
+            "How does RECEIVE-USRLST-SCREEN capture user input?",
+            "What does SEND-ACTVW-SCREEN display?",
+            "How does SEND-ACTUP-SCREEN present account updates?",
+            "How does SEND-CRDLI-SCREEN show the card list?",
+            "What does HANDLE-DB2-ERROR do on SQL failures?",
+            // ── File Definitions ──
+            "What files does the DALYREJS JCL handle?",
+            "How does the DISCGRP JCL delete disclosure groups?",
+            "What does the TRANIDX JCL index?",
+            "How does the TRANTYPE JCL define transaction types?",
+            "What does the TRANCATG JCL set up?",
+            "How does COMBTRAN combine transaction data?",
+            "What does the DUSRSECJ JCL do for user security?",
+            "How does MNTTRDB2 maintain DB2 transaction data?",
+            "What does the TCATBALF JCL process?",
+        ];
+
+        function toggleSuggestions() {
+            const panel = document.getElementById('suggestions-panel');
+            const isOpen = panel.classList.contains('open');
+            if (isOpen) {
+                panel.classList.remove('open');
+                return;
+            }
+            // Pick 5 random suggestions
+            const shuffled = SUGGESTIONS.slice().sort(() => 0.5 - Math.random());
+            const picks = shuffled.slice(0, 5);
+            const list = document.getElementById('suggestions-list');
+            list.innerHTML = '';
+            picks.forEach(function(text) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'suggestion-item';
+                btn.textContent = text;
+                btn.addEventListener('click', function() {
+                    document.getElementById('question').value = text;
+                    panel.classList.remove('open');
+                    document.getElementById('question').focus();
+                });
+                list.appendChild(btn);
+            });
+            panel.classList.add('open');
+        }
+
         function toggleSources() {
             document.getElementById('sources-section').classList.toggle('collapsed');
         }
