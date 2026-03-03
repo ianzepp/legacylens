@@ -605,6 +605,28 @@
             cursor: not-allowed;
         }
 
+        .btn-file {
+            display: inline-block;
+            margin-top: 0.5rem;
+            background: transparent;
+            border: 1px solid var(--accent-green);
+            border-radius: 3px;
+            padding: 0.3rem 0.7rem;
+            color: var(--accent-green);
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .btn-file:hover {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+        }
+
         /* ── Footer ── */
         .footer {
             margin-top: 2rem;
@@ -1020,6 +1042,16 @@
             document.getElementById('sources-section').classList.toggle('collapsed');
         }
 
+        var GITHUB_BASE = 'https://github.com/aws-samples/aws-mainframe-modernization-carddemo/blob/main/app/';
+        function githubUrl(filePath, startLine, endLine) {
+            if (!filePath) return '#';
+            var match = filePath.match(/app[\/\\](.+)$/);
+            var rel = match ? match[1] : filePath.replace(/.*[\/\\]/, '');
+            var url = GITHUB_BASE + rel + '#L' + (startLine || 1);
+            if (endLine && endLine > startLine) url += '-L' + endLine;
+            return url;
+        }
+
         function getScoreTier(score) {
             if (score >= 0.8) return 'high';
             if (score >= 0.5) return 'mid';
@@ -1047,7 +1079,7 @@
                     '<div class="source-meta">' + escapeHtml(s.name) + ' &middot; ' + escapeHtml(s.chunk_type || '') + '</div>' +
                     '<div class="source-actions">' +
                         '<button type="button" class="btn-context">Show Chunk</button>' +
-                        '<button type="button" class="btn-file">Load File Context</button>' +
+                        '<a class="btn-file" href="' + githubUrl(s.file_path, s.start_line, s.end_line) + '" target="_blank" rel="noopener">Full File</a>' +
                     '</div>' +
                     '<div class="source-content"></div>';
 
@@ -1061,38 +1093,7 @@
                     chunkBtn.textContent = isVisible ? 'Show Chunk' : 'Hide Chunk';
                 });
 
-                var fileBtn = div.querySelector('.btn-file');
-                fileBtn.addEventListener('click', async function() {
-                    if (!s.file_path) {
-                        sourceContent.textContent = 'File path unavailable for this source.';
-                        sourceContent.style.display = 'block';
-                        chunkBtn.textContent = 'Hide Chunk';
-                        return;
-                    }
-                    fileBtn.disabled = true;
-                    fileBtn.textContent = 'Loading...';
-                    try {
-                        const fileResp = await fetch('/api/file', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ file_path: s.file_path }),
-                        });
-                        const fileData = await fileResp.json();
-                        if (fileData.error) {
-                            sourceContent.textContent = 'Error: ' + fileData.error;
-                        } else {
-                            const suffix = fileData.truncated ? '\n\n[truncated to first 2000 lines]' : '';
-                            sourceContent.textContent = fileData.content + suffix;
-                        }
-                    } catch (fileErr) {
-                        sourceContent.textContent = 'Error: ' + fileErr.message;
-                    } finally {
-                        sourceContent.style.display = 'block';
-                        chunkBtn.textContent = 'Hide Chunk';
-                        fileBtn.disabled = false;
-                        fileBtn.textContent = 'Load File Context';
-                    }
-                });
+                // "Full File" is now an <a> link, no click handler needed
 
                 sourcesList.appendChild(div);
             });
