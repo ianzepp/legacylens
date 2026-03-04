@@ -29,8 +29,19 @@ if LAYER_1_CACHE:
         with open(_cache_file) as _f:
             _search_cache = json.load(_f)
 
-# In-memory LLM answer cache, keyed by (question, model)
-_ask_cache: dict[tuple[str, str], dict] = {}
+# In-memory LLM answer cache, keyed by request settings that can change RAG context.
+_ask_cache: dict[tuple[str, str, int, str | None, bool], dict] = {}
+
+
+def _make_ask_cache_key(
+    question: str,
+    model: str,
+    top_k: int,
+    file_type: str | None,
+    use_l1: bool,
+) -> tuple[str, str, int, str | None, bool]:
+    """Build a stable L2 cache key for answer requests."""
+    return (question, model, int(top_k), file_type, bool(use_l1))
 
 
 def _get_cached_results(query: str, top_k: int, file_type: str | None) -> list[dict] | None:
@@ -62,7 +73,7 @@ async def api_ask(request: Request):
     # Check LLM answer cache (keyed by question + model)
     from legacylens.config import settings
     effective_model = model or settings.chat_model
-    cache_key = (question, effective_model)
+    cache_key = _make_ask_cache_key(question, effective_model, top_k, file_type, use_l1)
     if use_l2 and cache_key in _ask_cache and not file_type:
         cached = _ask_cache[cache_key]
         cached_stats = dict(cached.get("stats", {}))
@@ -106,7 +117,7 @@ async def api_ask_stream(request: Request):
 
     from legacylens.config import settings
     effective_model = model or settings.chat_model
-    cache_key = (question, effective_model)
+    cache_key = _make_ask_cache_key(question, effective_model, top_k, file_type, use_l1)
 
     # Check Layer 2 cache — stream cached answer as single chunk
     if use_l2 and cache_key in _ask_cache and not file_type:
