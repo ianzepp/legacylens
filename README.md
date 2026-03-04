@@ -410,6 +410,24 @@ python benchmarks/grade_responses.py --max-grades 10
 python benchmarks/llm_report.py
 ```
 
+#### Latest Spot Check: Gemini Flash Lite on Suggestions (10 queries, 2026-03-04)
+
+To validate the current default model path and verbosity tradeoffs, three 10-query runs were executed on the `suggestions` set and graded with OpenRouter Claude Opus.
+
+- **Response model:** `openrouter:google/gemini-2.5-flash-lite`
+- **Grader model:** `openrouter:anthropic/claude-opus-4-6`
+- **Query set:** `suggestions`
+- **Query count:** `10`
+- **Top-k:** `10`
+
+| Verbosity | Mean Latency | p50 | p95 | Accuracy | Completeness | Citation Quality | Clarity | Conciseness | Overall |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Succinct | 1.51s | 1.544s | 1.784s | 4.30 | 3.10 | 3.40 | 4.40 | 4.50 | 3.40 |
+| Regular | 2.06s | 2.104s | 2.494s | 4.50 | 3.90 | 3.50 | 4.80 | 4.60 | **4.20** |
+| Detailed | 3.28s | 3.465s | 4.416s | 4.30 | 4.00 | 4.20 | 4.90 | 4.10 | 4.10 |
+
+Interpretation: more detail generally improves answer quality dimensions like completeness and citation quality, but increases latency. `Regular` currently gives the best quality/speed balance in this spot check.
+
 ### Ingestion Throughput Benchmark
 
 Measures the full ingestion pipeline (discover → chunk → embed → upsert) using temporary Pinecone indexes. Validates the **10,000+ LOC in <5 minutes** throughput target.
@@ -509,6 +527,41 @@ legacylens/
     ├── test_retrieval.py  # 13 tests (6 live + 7 chunking)
     └── test_benchmark.py  # 27 tests (configs, queries, relevance scoring, fixed chunker)
 ```
+
+## Development History (2026-03-02 to 2026-03-04)
+
+Full analysis: [`docs/commit-history-2026-03-02-to-2026-03-04.md`](docs/commit-history-2026-03-02-to-2026-03-04.md)
+
+LegacyLens went from skeleton to fully deployed, benchmarked RAG application in a 3-day sprint. 73 commits, ~8,400 source lines added (excluding benchmark data artifacts), 57% co-authored with Claude Opus 4.6.
+
+### Timeline
+
+| Day | Commits | Focus |
+|---|---|---|
+| Mon 03-02 | 11 | Foundation — test suite, benchmark harness, Fallout-mainframe UI, Railway deploy |
+| Tue 03-03 | 46 | Intensity — 16-config benchmark campaign, SSE→WebSocket streaming, testability refactor, LLM quality eval |
+| Wed 03-04 | 16 | Polish — latency telemetry, L1 sharded cache, syntax highlighting, submission checklist |
+
+### Themes
+
+1. **Benchmark-driven engineering** — 16-config embedding sweep → 40-query → 209-query validation. Every default backed by measured data.
+2. **Iterative caching** — L1+L2 → remove L2 → on-disk sharded L1 with prompt caching. Designs were added, measured, and removed based on observed behavior.
+3. **SSE→WebSocket migration** — Streaming transport upgraded to WebSocket JSONL with early source delivery and done/ack shutdown handshake.
+4. **Test coverage from Day 1** — 9+ test files, testability refactor touching all 6 core modules mid-sprint.
+
+### Velocity
+
+| Metric | Value |
+|---|---|
+| Commits/day | 24.3 (3-8x solo developer norm) |
+| Source lines/day | ~2,800 (5-14x solo developer norm) |
+| Code churn ratio | 15% (low end of healthy — code stuck on first pass) |
+| Peak day | Tue 03-03: 46 commits across ~14 hours |
+| AI co-authored | 42/73 commits (57%), clustered on infrastructure and refactors |
+
+### Code Survival
+
+Core pipeline modules: ~55-65% survival (early architecture held, implementation details iterated). UI layer: ~35% (multiple streaming/styling passes). Test suite: ~80% (primarily additive).
 
 ## Deployment
 
