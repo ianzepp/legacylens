@@ -5,8 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import tiktoken
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from .config import settings
@@ -43,6 +42,12 @@ Retrieved context:
 """
 
 USER_PROMPT = "{question}"
+VERBOSITY_INSTRUCTIONS = {
+    "succinct": "Response style: very brief. Use 1-3 sentences maximum.",
+    "concise": "Response style: concise. Keep to one short paragraph when possible.",
+    "regular": "Response style: balanced. Keep answers clear and focused, usually 1-2 paragraphs.",
+    "detailed": "Response style: detailed. Provide fuller explanations with relevant specifics from the context.",
+}
 NO_CONTEXT_MESSAGE = (
     "I could not retrieve any relevant code chunks for this question. "
     "Please try rephrasing, broadening the question, or checking index/namespace configuration."
@@ -121,11 +126,55 @@ def _serialize_source(result) -> dict:
     }
 
 
-def _build_prompt() -> ChatPromptTemplate:
-    return ChatPromptTemplate.from_messages([
-        ("system", SYSTEM_PROMPT),
-        ("human", USER_PROMPT),
-    ])
+def _resolve_verbosity(verbosity: str | None) -> str:
+    if not verbosity:
+        return "regular"
+    key = verbosity.strip().lower()
+    return key if key in VERBOSITY_INSTRUCTIONS else "regular"
+
+
+def _build_system_prompt(verbosity: str | None) -> str:
+    mode = _resolve_verbosity(verbosity)
+    return f"{SYSTEM_PROMPT}\n\n{VERBOSITY_INSTRUCTIONS[mode]}"
+
+
+def _build_messages(system_prompt: str, question: str, model: str) -> list:
+    """Build chat messages and add OpenRouter cache hints where supported.
+
+    OpenRouter prompt caching is model/provider-dependent. We attach
+    cache_control to the system content block for OpenRouter-routed models.
+    """
+    if _is_openrouter_model(model):
+        sys_content = [{
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }]
+    else:
+        sys_content = system_prompt
+
+    return [
+        SystemMessage(content=sys_content),
+        HumanMessage(content=question),
+    ]
+
+
+def _content_to_text(content) -> str:
+    """Normalize LangChain message content (str or content parts) to plain text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return str(content or "")
 
 
 def _resolve_results(
@@ -147,6 +196,7 @@ def _prepare_common(
     top_k: int | None,
     file_type: str | None,
     model: str | None,
+    verbosity: str | None,
     results: list | None,
     deps: ChainDependencies,
 ) -> dict:
@@ -161,13 +211,15 @@ def _prepare_common(
     t_rag = deps.clock_fn()
     context = _format_context(resolved_results)
     effective_model = model or settings.chat_model
-    input_text = SYSTEM_PROMPT.replace("{context}", context) + question
+    system_prompt = _build_system_prompt(verbosity)
+    input_text = system_prompt.replace("{context}", context) + question
     tokens_in = deps.count_tokens_fn(input_text)
     return {
         "t_start": t_start,
         "t_rag": t_rag,
         "context": context,
         "effective_model": effective_model,
+        "system_prompt": system_prompt,
         "tokens_in": tokens_in,
         "results": resolved_results,
         "rag_cached": rag_cached,
@@ -204,6 +256,7 @@ def ask_stream(
     top_k: int | None = None,
     file_type: str | None = None,
     model: str | None = None,
+    verbosity: str | None = None,
     results: list | None = None,
     *,
     deps: ChainDependencies | None = None,
@@ -220,6 +273,7 @@ def ask_stream(
         top_k=top_k,
         file_type=file_type,
         model=model,
+        verbosity=verbosity,
         results=results,
         deps=active_deps,
     )
@@ -242,15 +296,18 @@ def ask_stream(
         return
 
     llm = active_deps.build_llm_fn(shared["effective_model"], True)
-    chain = _build_prompt() | llm | StrOutputParser()
+    messages = _build_messages(shared["system_prompt"], question, shared["effective_model"])
 
     answer_chunks = []
     t_llm_first = None
-    for chunk in chain.stream({"context": shared["context"], "question": question}):
+    for chunk in llm.stream(messages):
+        text = _content_to_text(chunk.content)
+        if not text:
+            continue
         if t_llm_first is None:
             t_llm_first = active_deps.clock_fn()
-        answer_chunks.append(chunk)
-        yield ("token", chunk)
+        answer_chunks.append(text)
+        yield ("token", text)
     t_llm = active_deps.clock_fn()
     if t_llm_first is None:
         t_llm_first = t_llm
@@ -276,6 +333,7 @@ def ask(
     top_k: int | None = None,
     file_type: str | None = None,
     model: str | None = None,
+    verbosity: str | None = None,
     results: list | None = None,
     *,
     deps: ChainDependencies | None = None,
@@ -287,6 +345,7 @@ def ask(
         top_k=top_k,
         file_type=file_type,
         model=model,
+        verbosity=verbosity,
         results=results,
         deps=active_deps,
     )
@@ -296,8 +355,9 @@ def ask(
         tokens_out = active_deps.count_tokens_fn(answer)
     else:
         llm = active_deps.build_llm_fn(shared["effective_model"], False)
-        chain = _build_prompt() | llm | StrOutputParser()
-        answer = chain.invoke({"context": shared["context"], "question": question})
+        messages = _build_messages(shared["system_prompt"], question, shared["effective_model"])
+        answer_msg = llm.invoke(messages)
+        answer = _content_to_text(answer_msg.content)
         t_llm = active_deps.clock_fn()
         tokens_out = active_deps.count_tokens_fn(answer)
 
