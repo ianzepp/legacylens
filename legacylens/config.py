@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
     pinecone_model: str = "llama-text-embed-v2"
-    chat_model: str = "gpt-4o-mini"
-    top_k: int = 10
+    chat_model: str = "google/gemini-2.5-flash-lite"
+    top_k: int = 5
 
     use_ollama: bool = False
     ollama_base_url: str = "http://localhost:11434"
