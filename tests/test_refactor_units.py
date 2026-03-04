@@ -89,6 +89,32 @@ class TestChainDependencySeams:
         assert events[3][0] == "stats"
         assert events[3][1]["rag_cached"] is True
 
+    def test_ask_returns_no_context_message_when_no_results(self):
+        deps = ChainDependencies(
+            retrieve_fn=lambda *_args, **_kwargs: [],
+            build_llm_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("llm should not run")),
+            count_tokens_fn=lambda text: len(text),
+            clock_fn=lambda: 300.0,
+        )
+        out = ask("missing", deps=deps)
+        assert "could not retrieve any relevant code chunks" in out["answer"].lower()
+        assert out["stats"]["chunks"] == 0
+
+    def test_ask_stream_returns_no_context_message_when_no_results(self, monkeypatch):
+        monkeypatch.setattr(chain_mod, "_build_prompt", lambda: _FakePrompt())
+        deps = ChainDependencies(
+            retrieve_fn=lambda *_args, **_kwargs: [],
+            build_llm_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("llm should not run")),
+            count_tokens_fn=lambda text: len(text),
+            clock_fn=lambda: 400.0,
+        )
+        events = list(ask_stream("missing", deps=deps))
+        assert events[0] == ("sources", [])
+        assert events[1][0] == "token"
+        assert "could not retrieve any relevant code chunks" in events[1][1].lower()
+        assert events[2][0] == "stats"
+        assert events[2][1]["chunks"] == 0
+
 
 class TestCliHelpers:
     def test_run_ask_formats_output(self):

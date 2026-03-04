@@ -42,3 +42,7 @@ htmlcov/
 
 # OS files
 .DS_Store
+
+# Benchmark output artifacts
+benchmarks/results/*.json
+benchmarks/results/*.csv

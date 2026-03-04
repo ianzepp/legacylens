@@ -43,6 +43,10 @@ Retrieved context:
 """
 
 USER_PROMPT = "{question}"
+NO_CONTEXT_MESSAGE = (
+    "I could not retrieve any relevant code chunks for this question. "
+    "Please try rephrasing, broadening the question, or checking index/namespace configuration."
+)
 
 
 @dataclass(frozen=True)
@@ -220,6 +224,22 @@ def ask_stream(
         deps=active_deps,
     )
     yield ("sources", [_serialize_source(r) for r in shared["results"]])
+    if not shared["results"]:
+        tokens_out = active_deps.count_tokens_fn(NO_CONTEXT_MESSAGE)
+        yield ("token", NO_CONTEXT_MESSAGE)
+        t_now = active_deps.clock_fn()
+        yield ("stats", _build_stats(
+            t_start=shared["t_start"],
+            t_rag=shared["t_rag"],
+            t_llm_first=t_now,
+            t_llm_end=t_now,
+            tokens_in=shared["tokens_in"],
+            tokens_out=tokens_out,
+            chunk_count=0,
+            model=shared["effective_model"],
+            rag_cached=shared["rag_cached"],
+        ))
+        return
 
     llm = active_deps.build_llm_fn(shared["effective_model"], True)
     chain = _build_prompt() | llm | StrOutputParser()
@@ -270,12 +290,16 @@ def ask(
         results=results,
         deps=active_deps,
     )
-    llm = active_deps.build_llm_fn(shared["effective_model"], False)
-    chain = _build_prompt() | llm | StrOutputParser()
-
-    answer = chain.invoke({"context": shared["context"], "question": question})
-    t_llm = active_deps.clock_fn()
-    tokens_out = active_deps.count_tokens_fn(answer)
+    if not shared["results"]:
+        answer = NO_CONTEXT_MESSAGE
+        t_llm = active_deps.clock_fn()
+        tokens_out = active_deps.count_tokens_fn(answer)
+    else:
+        llm = active_deps.build_llm_fn(shared["effective_model"], False)
+        chain = _build_prompt() | llm | StrOutputParser()
+        answer = chain.invoke({"context": shared["context"], "question": question})
+        t_llm = active_deps.clock_fn()
+        tokens_out = active_deps.count_tokens_fn(answer)
 
     return {
         "answer": answer,
