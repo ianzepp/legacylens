@@ -1320,6 +1320,7 @@
                 let streamedSources = [];
                 let sawAnyEvent = false;
                 let sawDoneEvent = false;
+                let sawErrorEvent = false;
 
                 function finish(ok, err) {
                     if (settled) return;
@@ -1369,6 +1370,7 @@
                             return;
                         }
                         if (typ === 'error') {
+                            sawErrorEvent = true;
                             document.getElementById('answer-content').innerHTML =
                                 '<span class="error">Error: ' + escapeHtml(String(data || 'Unknown error')) + '</span>';
                             ws.close();
@@ -1393,7 +1395,16 @@
                         finish(true);
                         return;
                     }
+                    if (sawErrorEvent) {
+                        finish(true);
+                        return;
+                    }
                     if (sawAnyEvent && (event.code === 1000 || event.code === 1001)) {
+                        finish(true);
+                        return;
+                    }
+                    if (sawAnyEvent || answerText.length > 0 || streamedSources.length > 0) {
+                        appendWsLog('state', 'treating abnormal close as completed stream');
                         finish(true);
                         return;
                     }
