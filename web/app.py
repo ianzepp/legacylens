@@ -113,7 +113,6 @@ async def ws_ask(websocket: WebSocket):
     except Exception:
         await _send_ws_jsonl_event(websocket, "error", "Invalid JSON payload")
         await _send_ws_jsonl_event(websocket, "done", None)
-        await websocket.close()
         return
 
     question = body.get("question", "")
@@ -124,7 +123,6 @@ async def ws_ask(websocket: WebSocket):
     if not question.strip():
         await _send_ws_jsonl_event(websocket, "error", "Question is required")
         await _send_ws_jsonl_event(websocket, "done", None)
-        await websocket.close()
         return
 
     from legacylens.chain import ask_stream
@@ -146,7 +144,11 @@ async def ws_ask(websocket: WebSocket):
             if typ == "token":
                 await _send_ws_jsonl_event(websocket, "token", data)
             elif typ == "sources":
-                await _send_ws_jsonl_event(websocket, "sources", data)
+                sources = data if isinstance(data, list) else []
+                await _send_ws_jsonl_event(websocket, "sources_begin", {"count": len(sources)})
+                for source in sources:
+                    await _send_ws_jsonl_event(websocket, "source", source)
+                await _send_ws_jsonl_event(websocket, "sources_end", {"count": len(sources)})
             elif typ == "stats":
                 await _send_ws_jsonl_event(websocket, "stats", data)
 
@@ -157,11 +159,6 @@ async def ws_ask(websocket: WebSocket):
         try:
             await _send_ws_jsonl_event(websocket, "error", str(exc))
             await _send_ws_jsonl_event(websocket, "done", None)
-        except Exception:
-            pass
-    finally:
-        try:
-            await websocket.close()
         except Exception:
             pass
 

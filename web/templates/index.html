@@ -1216,6 +1216,7 @@
             return new Promise((resolve, reject) => {
                 let settled = false;
                 let answerText = '';
+                let streamedSources = [];
 
                 function finish(ok, err) {
                     if (settled) return;
@@ -1243,8 +1244,18 @@
                             document.getElementById('answer-content').innerHTML = marked.parse(answerText);
                             return;
                         }
-                        if (typ === 'sources') {
-                            renderSources(Array.isArray(data) ? data : []);
+                        if (typ === 'sources_begin') {
+                            streamedSources = [];
+                            renderSources([]);
+                            return;
+                        }
+                        if (typ === 'source') {
+                            streamedSources.push(data || {});
+                            renderSources(streamedSources);
+                            return;
+                        }
+                        if (typ === 'sources_end') {
+                            renderSources(streamedSources);
                             return;
                         }
                         if (typ === 'stats') {
