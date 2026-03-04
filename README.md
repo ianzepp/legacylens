@@ -18,6 +18,41 @@ A RAG-powered system that makes legacy COBOL codebases queryable via natural lan
 | 8 | Basic answer generation using retrieved context | Done | LangChain RAG chain with GPT-4o-mini; grounded answers with `[File:Line-Line]` citations |
 | 9 | Deployed and publicly accessible | Done | https://web-production-3455.up.railway.app/ |
 
+## Final Submission Requirements Status (as of 2026-03-04)
+
+Source of truth: `docs/LegacyLens.md` (Final deliverables + required feature/quality targets).
+
+### Final Deliverables Checklist (Final Scope Only)
+
+| Deliverable | Required | Current Status | Evidence in Repo | Gap to Close |
+|---|---|---|---|---|
+| GitHub Repository | Setup guide, architecture overview, deployed link | Done | This README includes setup, architecture, and deployed URL | None |
+| Demo Video (3-5 min) | Show queries, retrieval, answer generation | Done (content), runtime not re-validated here | [LegacyLens Demo — RAG-Powered COBOL Code Explorer](https://youtu.be/wxKjCIaJizY) | Optionally verify final runtime is 3-5 minutes |
+| RAG Architecture Doc (1-2 pages) | Vector DB choice, embedding strategy, chunking, retrieval flow, failure modes, performance results | Partial | Architecture + benchmarks are documented in this README | Create a dedicated 1-2 page final artifact in `docs/` that follows the template directly |
+| AI Cost Analysis | Dev spend + projections for 100/1K/10K/100K users | Missing | No quantified spend/projection section yet | Add measured dev costs + monthly projection table with assumptions |
+| Deployed Application | Publicly accessible query interface | Done | Live URL + `web/` FastAPI app | None |
+| Social Post | X/LinkedIn post with demo/screenshots and `@GauntletAI` tag | Missing (no repo evidence) | None in repo | Publish post and add link in README |
+
+### Product/Technical Requirement Snapshot
+
+| Requirement Area | LegacyLens Requirement | Current Status | Evidence |
+|---|---|---|---|
+| Query Interface | NL queries, snippets with file/line, relevance scores, generated answer, full-file drilldown | Mostly Done | `web/app.py`, `web/templates/index.html`, CLI in `legacylens/cli.py` |
+| Syntax Highlighting | Retrieved snippets shown with syntax highlighting | Gap | Source chunks are rendered as plain text in UI | Add client-side highlighting (or server-side rendered highlighting) |
+| Code Understanding Features (4+) | Implement at least four (explanation, dependency mapping, pattern detection, impact analysis, etc.) | Likely Done | Explanation via RAG answer generation, dependency metadata (`copy_references`, `calls_to`), pattern-style querying, business-logic Q&A |
+| Retrieval Precision Target | >70% relevant chunks in top-5 | Done | Benchmark sections report ~0.88 top-k relevance |
+| Ingestion Throughput Target | 10,000+ LOC in <5 minutes | Done | Ingestion benchmark section reports passing configs |
+| Codebase Scale/Coverage | 10,000+ LOC, 50+ files, full indexing | Done | 206 files, ~40K+ LOC, ingestion/vector counts documented |
+| End-to-End Latency Target | <3s query latency | Partial | Retrieval latency is sub-second; full ask path documented around ~3-5s in README |
+
+### Remaining Work for Fully Aligned Final Submission
+
+1. Add a dedicated `docs/final-rag-architecture.md` (1-2 pages) using the assignment template headings.
+2. Add a quantified AI cost analysis section (actual dev spend + 100/1K/10K/100K monthly projections).
+3. Complete and update Phase 3 items in `docs/pre-search-decisions.md` so the checklist is fully closed.
+4. Add syntax highlighting for retrieved code snippets in the web UI.
+5. Publish social post and add the link to README.
+
 ## Video Demos
 
 - [LegacyLens Demo — RAG-Powered COBOL Code Explorer](https://youtu.be/wxKjCIaJizY)
