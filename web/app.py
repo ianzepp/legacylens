@@ -153,6 +153,14 @@ async def ws_ask(websocket: WebSocket):
                 await _send_ws_jsonl_event(websocket, "stats", data)
 
         await _send_ws_jsonl_event(websocket, "done", None)
+        # Keep socket alive briefly so client can acknowledge receipt of `done`
+        # before the server side disconnects.
+        try:
+            ack = await asyncio.wait_for(websocket.receive_json(), timeout=1.5)
+            if isinstance(ack, dict) and ack.get("type") == "ack_done":
+                return
+        except Exception:
+            pass
     except WebSocketDisconnect:
         return
     except Exception as exc:

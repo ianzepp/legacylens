@@ -1379,6 +1379,14 @@
                         }
                         if (typ === 'done') {
                             sawDoneEvent = true;
+                            try {
+                                const ack = JSON.stringify({ type: 'ack_done' });
+                                appendWsLog('send', ack);
+                                ws.send(ack);
+                            } catch (_) {}
+                            try {
+                                ws.close(1000, 'done');
+                            } catch (_) {}
                             finish(true);
                         }
                     });
