@@ -64,6 +64,18 @@ class TestFormatContext:
         assert "Source 1:" in ctx
         assert "Source 2:" in ctx
 
+    def test_trims_lower_ranked_source_content(self):
+        long_text = "X" * 800
+        results = [
+            _make_result(name="A", content="short-a"),
+            _make_result(name="B", content="short-b"),
+            _make_result(name="C", content="short-c"),
+            _make_result(name="D", content=long_text),
+        ]
+        ctx = _format_context(results)
+        assert "Source 4:" in ctx
+        assert "... [truncated]" in ctx
+
     def test_empty_results(self):
         ctx = _format_context([])
         assert ctx == ""

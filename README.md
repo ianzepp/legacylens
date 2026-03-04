@@ -24,38 +24,32 @@ Source of truth: `docs/LegacyLens.md` (Final deliverables + required feature/qua
 
 ### Final Deliverables Checklist (Final Scope Only)
 
-| Deliverable | Required | Current Status | Evidence in Repo | Gap to Close |
-|---|---|---|---|---|
-| GitHub Repository | Setup guide, architecture overview, deployed link | Done | This README includes setup, architecture, and deployed URL | None |
-| Demo Video (3-5 min) | Show queries, retrieval, answer generation | Done (content), runtime not re-validated here | [LegacyLens Demo — RAG-Powered COBOL Code Explorer](https://youtu.be/wxKjCIaJizY) | Optionally verify final runtime is 3-5 minutes |
-| RAG Architecture Doc (1-2 pages) | Vector DB choice, embedding strategy, chunking, retrieval flow, failure modes, performance results | Partial | Architecture + benchmarks are documented in this README | Create a dedicated 1-2 page final artifact in `docs/` that follows the template directly |
-| AI Cost Analysis | Dev spend + projections for 100/1K/10K/100K users | Missing | No quantified spend/projection section yet | Add measured dev costs + monthly projection table with assumptions |
-| Deployed Application | Publicly accessible query interface | Done | Live URL + `web/` FastAPI app | None |
-| Social Post | X/LinkedIn post with demo/screenshots and `@GauntletAI` tag | Missing (no repo evidence) | None in repo | Publish post and add link in README |
+| Deliverable | Required | Status | Evidence |
+|---|---|---|---|
+| GitHub Repository | Setup guide, architecture overview, deployed link | Done | This README |
+| Demo Video (3-5 min) | Show queries, retrieval, answer generation | Done | [LegacyLens Final Demo](https://youtu.be/Pp8Fk3f562M) |
+| RAG Architecture Doc (1-2 pages) | Vector DB choice, embedding strategy, chunking, retrieval flow, failure modes, performance results | Done | [`docs/final-rag-architecture.md`](docs/final-rag-architecture.md) |
+| AI Cost Analysis | Dev spend + projections for 100/1K/10K/100K users | Done | [`docs/ai-cost-analysis.md`](docs/ai-cost-analysis.md) |
+| AI Development Log | Tools, workflow, effective prompts, code analysis, learnings | Done | [`docs/ai-development-log.md`](docs/ai-development-log.md) |
+| Deployed Application | Publicly accessible query interface | Done | https://web-production-3455.up.railway.app/ |
+| Social Post | X/LinkedIn post with demo/screenshots and `@GauntletAI` tag | Done | [X post](https://x.com/ianzepp/status/2029335781718798753) |
 
 ### Product/Technical Requirement Snapshot
 
-| Requirement Area | LegacyLens Requirement | Current Status | Evidence |
+| Requirement Area | LegacyLens Requirement | Status | Evidence |
 |---|---|---|---|
-| Query Interface | NL queries, snippets with file/line, relevance scores, generated answer, full-file drilldown | Mostly Done | `web/app.py`, `web/templates/index.html`, CLI in `legacylens/cli.py` |
-| Syntax Highlighting | Retrieved snippets shown with syntax highlighting | Gap | Source chunks are rendered as plain text in UI | Add client-side highlighting (or server-side rendered highlighting) |
-| Code Understanding Features (4+) | Implement at least four (explanation, dependency mapping, pattern detection, impact analysis, etc.) | Likely Done | Explanation via RAG answer generation, dependency metadata (`copy_references`, `calls_to`), pattern-style querying, business-logic Q&A |
-| Retrieval Precision Target | >70% relevant chunks in top-5 | Done | Benchmark sections report ~0.88 top-k relevance |
-| Ingestion Throughput Target | 10,000+ LOC in <5 minutes | Done | Ingestion benchmark section reports passing configs |
-| Codebase Scale/Coverage | 10,000+ LOC, 50+ files, full indexing | Done | 206 files, ~40K+ LOC, ingestion/vector counts documented |
-| End-to-End Latency Target | <3s query latency | Partial | Retrieval latency is sub-second; full ask path documented around ~3-5s in README |
-
-### Remaining Work for Fully Aligned Final Submission
-
-1. Add a dedicated `docs/final-rag-architecture.md` (1-2 pages) using the assignment template headings.
-2. Add a quantified AI cost analysis section (actual dev spend + 100/1K/10K/100K monthly projections).
-3. Complete and update Phase 3 items in `docs/pre-search-decisions.md` so the checklist is fully closed.
-4. Add syntax highlighting for retrieved code snippets in the web UI.
-5. Publish social post and add the link to README.
+| Query Interface | NL queries, snippets with file/line, relevance scores, generated answer, full-file drilldown | Done | `web/app.py`, `web/templates/index.html`, CLI in `legacylens/cli.py` |
+| Syntax Highlighting | Retrieved snippets shown with syntax highlighting | Done | Commit `b728a36` |
+| Code Understanding Features (4+) | Implement at least four (explanation, dependency mapping, pattern detection, impact analysis, etc.) | Done | Explanation via RAG, dependency metadata (`copy_references`, `calls_to`), pattern-style querying, business-logic Q&A |
+| Retrieval Precision Target | >70% relevant chunks in top-5 | Done | 0.88 relevance (40 queries), 0.92 (209 queries) |
+| Ingestion Throughput Target | 10,000+ LOC in <5 minutes | Done | 48K LOC in 40.8s (1,184 LOC/s) |
+| Codebase Scale/Coverage | 10,000+ LOC, 50+ files, full indexing | Done | 206 files, ~40K LOC, 1,018 chunks |
+| End-to-End Latency Target | <3s query latency | Done | Succinct 1.51s, Regular 2.06s (Gemini Flash Lite) |
 
 ## Video Demos
 
-- [LegacyLens Demo — RAG-Powered COBOL Code Explorer](https://youtu.be/wxKjCIaJizY)
+- [LegacyLens Final Demo — RAG-Powered COBOL Code Explorer](https://youtu.be/Pp8Fk3f562M)
+- [LegacyLens MVP Demo](https://youtu.be/wxKjCIaJizY)
 
 ## Architecture
 
