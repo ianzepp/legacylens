@@ -137,6 +137,7 @@ async def api_ask(request: Request):
     model = body.get("model") or None
     verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
+    use_l1_trim = _is_truthy(body.get("l1_trim", True))
 
     if not question.strip():
         return {"error": "Question is required"}
@@ -150,6 +151,7 @@ async def api_ask(request: Request):
             "file_type": file_type,
             "model": model,
             "verbosity": verbosity,
+            "trim_context": use_l1_trim,
         }
         if cached is not None:
             ask_kwargs["results"] = [QueryResult(**r) for r in cached]
@@ -171,6 +173,7 @@ async def api_ask_stream(request: Request):
     model = body.get("model") or None
     verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
+    use_l1_trim = _is_truthy(body.get("l1_trim", True))
 
     if not question.strip():
         async def error_stream():
@@ -203,6 +206,7 @@ async def api_ask_stream(request: Request):
                 stream_kwargs["results"] = results
             if verbosity is not None:
                 stream_kwargs["verbosity"] = verbosity
+            stream_kwargs["trim_context"] = use_l1_trim
             gen = ask_stream(question, **stream_kwargs)
 
             while True:
@@ -245,6 +249,7 @@ async def ws_ask(websocket: WebSocket):
     model = body.get("model") or None
     verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
+    use_l1_trim = _is_truthy(body.get("l1_trim", True))
 
     if not question.strip():
         await _send_ws_jsonl_event(websocket, "error", "Question is required")
@@ -268,6 +273,7 @@ async def ws_ask(websocket: WebSocket):
             stream_kwargs["results"] = results
         if verbosity is not None:
             stream_kwargs["verbosity"] = verbosity
+        stream_kwargs["trim_context"] = use_l1_trim
         gen = ask_stream(question, **stream_kwargs)
 
         while True:

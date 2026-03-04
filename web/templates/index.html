@@ -947,6 +947,13 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
+                <div class="config-group">
+                    <label class="config-label">L1 Trim</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cfg-l1-trim" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
         </form>
 
@@ -1601,6 +1608,7 @@
             const verbosity = document.getElementById('cfg-verbosity').value;
             const useStream = document.getElementById('cfg-stream').checked;
             const useL1Cache = document.getElementById('cfg-l1-cache').checked;
+            const useL1Trim = document.getElementById('cfg-l1-trim').checked;
 
             const btn = document.getElementById('btn-submit');
             btn.disabled = true;
@@ -1617,6 +1625,7 @@
                 model: model,
                 verbosity: verbosity,
                 l1_cache: useL1Cache,
+                l1_trim: useL1Trim,
             };
             clearWsLog();
 

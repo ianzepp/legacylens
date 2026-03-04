@@ -12,6 +12,9 @@ from .config import settings
 from .retriever import retrieve
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+FULL_CONTENT_SOURCES = 3
+TRIMMED_CONTENT_CHARS = 320
+MAX_CONTEXT_CHARS = 16_000
 
 _encoder = None
 
@@ -75,17 +78,51 @@ def _default_dependencies() -> ChainDependencies:
 
 def _format_context(results: list) -> str:
     """Format retrieved results into context string."""
+    return _format_context_with_options(results, trim_context=True)
+
+
+def _format_context_with_options(results: list, *, trim_context: bool) -> str:
+    """Format retrieved results into context string with optional trimming."""
+    def _trim(text: str, limit: int) -> str:
+        if limit <= 0:
+            return ""
+        if len(text) <= limit:
+            return text
+        return text[:limit].rstrip() + "\n... [truncated]"
+
     parts = []
+    total_chars = 0
     for i, r in enumerate(results, 1):
+        if total_chars >= MAX_CONTEXT_CHARS:
+            break
+
         score_str = f"{r.score:.3f}" if r.score is not None else "n/a"
         summary = (r.summary or "").strip()
         summary_block = f"Summary: {summary}\n" if summary else ""
-        parts.append(
+        raw_content = r.content or ""
+        if (not trim_context) or i <= FULL_CONTENT_SOURCES:
+            content = raw_content
+        else:
+            content = _trim(raw_content, TRIMMED_CONTENT_CHARS)
+
+        block = (
             f"--- Source {i}: {r.file_path}:{r.start_line}-{r.end_line} "
             f"(score: {score_str}) ---\n"
             f"{summary_block}"
             f"{r.preamble}\n\n"
-            f"{r.content}\n"
+            f"{content}\n"
+        )
+
+        remaining = MAX_CONTEXT_CHARS - total_chars
+        if len(block) > remaining:
+            block = _trim(block, max(0, remaining))
+
+        if not block:
+            break
+
+        total_chars += len(block)
+        parts.append(
+            block
         )
     return "\n".join(parts)
 
@@ -201,6 +238,7 @@ def _prepare_common(
     file_type: str | None,
     model: str | None,
     verbosity: str | None,
+    trim_context: bool,
     results: list | None,
     deps: ChainDependencies,
 ) -> dict:
@@ -213,7 +251,7 @@ def _prepare_common(
         retrieve_fn=deps.retrieve_fn,
     )
     t_rag = deps.clock_fn()
-    context = _format_context(resolved_results)
+    context = _format_context_with_options(resolved_results, trim_context=trim_context)
     effective_model = model or settings.chat_model
     system_prompt = _build_system_prompt(verbosity)
     input_text = system_prompt.replace("{context}", context) + question
@@ -261,6 +299,7 @@ def ask_stream(
     file_type: str | None = None,
     model: str | None = None,
     verbosity: str | None = None,
+    trim_context: bool = True,
     results: list | None = None,
     *,
     deps: ChainDependencies | None = None,
@@ -278,6 +317,7 @@ def ask_stream(
         file_type=file_type,
         model=model,
         verbosity=verbosity,
+        trim_context=trim_context,
         results=results,
         deps=active_deps,
     )
@@ -338,6 +378,7 @@ def ask(
     file_type: str | None = None,
     model: str | None = None,
     verbosity: str | None = None,
+    trim_context: bool = True,
     results: list | None = None,
     *,
     deps: ChainDependencies | None = None,
@@ -350,6 +391,7 @@ def ask(
         file_type=file_type,
         model=model,
         verbosity=verbosity,
+        trim_context=trim_context,
         results=results,
         deps=active_deps,
     )

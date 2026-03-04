@@ -15,10 +15,11 @@ def _recv_jsonl_event(ws):
 
 
 def test_ws_ask_streams_jsonl_events(monkeypatch):
-    def fake_ask_stream(_question, top_k=None, file_type=None, model=None):
+    def fake_ask_stream(_question, top_k=None, file_type=None, model=None, trim_context=None):
         assert top_k == 7
         assert file_type == "cbl"
         assert model == "x-model"
+        assert trim_context is True
         yield ("sources", [{"file_name": "FOO.cbl", "start_line": 1, "end_line": 2, "name": "MAIN", "score": 0.7}])
         yield ("token", "hello ")
         yield ("token", "world")

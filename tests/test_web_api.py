@@ -9,13 +9,22 @@ from web.app import app
 def test_api_ask_forwards_verbosity(monkeypatch):
     captured = {}
 
-    def fake_ask(question, top_k=None, file_type=None, model=None, results=None, verbosity=None):
+    def fake_ask(
+        question,
+        top_k=None,
+        file_type=None,
+        model=None,
+        results=None,
+        verbosity=None,
+        trim_context=None,
+    ):
         captured["question"] = question
         captured["top_k"] = top_k
         captured["file_type"] = file_type
         captured["model"] = model
         captured["results"] = results
         captured["verbosity"] = verbosity
+        captured["trim_context"] = trim_context
         return {"answer": "ok", "sources": [], "stats": {}}
 
     monkeypatch.setattr("legacylens.chain.ask", fake_ask)
@@ -33,6 +42,7 @@ def test_api_ask_forwards_verbosity(monkeypatch):
     body = resp.json()
     assert body["answer"] == "ok"
     assert captured["verbosity"] == "detailed"
+    assert captured["trim_context"] is True
     assert captured["top_k"] == 7
     assert captured["file_type"] == "cbl"
     assert captured["model"] == "x-model"
