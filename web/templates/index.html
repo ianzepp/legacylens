@@ -1298,7 +1298,7 @@
                 const tier = getScoreTier(s.score);
                 const pct = s.score != null ? (s.score * 100).toFixed(1) + '%' : 'n/a';
                 const sourceBody = ((s.preamble || '') + '\n\n' + (s.content || '')).trim();
-                const meta = [s.name, s.chunk_type].filter(Boolean).join(' \u00b7 ');
+                const meta = (s.summary || [s.name, s.chunk_type].filter(Boolean).join(' \u00b7 ')).trim();
 
                 const div = document.createElement('div');
                 div.className = 'source-item score-' + tier;

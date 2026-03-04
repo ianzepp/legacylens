@@ -13,6 +13,28 @@ METADATA_CONTENT_LIMIT = 10000  # Pinecone 40KB metadata limit
 TEXT_FIELD = "chunk_text"  # field name for Pinecone integrated indexes
 
 
+def _semantic_summary(chunk: CodeChunk) -> str:
+    """Build a concise semantic summary for retrieval context and UI display."""
+    parts = [f"{chunk.chunk_type} {chunk.name} in {chunk.file_name}"]
+
+    if chunk.copy_references:
+        refs = ", ".join(chunk.copy_references[:4])
+        suffix = "..." if len(chunk.copy_references) > 4 else ""
+        parts.append(f"uses COPY refs: {refs}{suffix}")
+
+    if chunk.calls_to:
+        calls = ", ".join(chunk.calls_to[:4])
+        suffix = "..." if len(chunk.calls_to) > 4 else ""
+        parts.append(f"invokes: {calls}{suffix}")
+
+    if chunk.comments:
+        comment = chunk.comments.strip().splitlines()[0][:120]
+        if comment:
+            parts.append(f"comment hint: {comment}")
+
+    return ". ".join(parts) + "."
+
+
 def _build_filter_dict(
     file_type_filter: str | None = None,
     metadata_filters: dict[str, str] | None = None,
@@ -56,6 +78,7 @@ def _chunk_metadata(chunk: CodeChunk) -> dict:
         "has_comments": bool(chunk.comments.strip()),
         "content": chunk.content[:METADATA_CONTENT_LIMIT],
         "preamble": chunk.preamble,
+        "summary": chunk.summary or _semantic_summary(chunk),
         "copy_references": ",".join(chunk.copy_references),
         "calls_to": ",".join(chunk.calls_to),
     }

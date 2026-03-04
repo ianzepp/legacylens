@@ -135,6 +135,7 @@ async def api_ask(request: Request):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
@@ -146,9 +147,13 @@ async def api_ask(request: Request):
         cached = _get_cached_results(question, top_k, file_type) if use_l1 else None
         if cached is not None:
             results = [QueryResult(**r) for r in cached]
-            result = await asyncio.to_thread(ask, question, top_k, file_type, model, results)
+            result = await asyncio.to_thread(
+                ask, question, top_k, file_type, model, results, verbosity=verbosity
+            )
         else:
-            result = await asyncio.to_thread(ask, question, top_k, file_type, model)
+            result = await asyncio.to_thread(
+                ask, question, top_k, file_type, model, verbosity=verbosity
+            )
     except Exception as exc:
         return {"error": str(exc), "sources": []}
 
@@ -162,6 +167,7 @@ async def api_ask_stream(request: Request):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
@@ -190,7 +196,12 @@ async def api_ask_stream(request: Request):
         sources = []
         stats = {}
         try:
-            gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model, results=results)
+            stream_kwargs = {"top_k": top_k, "file_type": file_type, "model": model}
+            if results is not None:
+                stream_kwargs["results"] = results
+            if verbosity is not None:
+                stream_kwargs["verbosity"] = verbosity
+            gen = ask_stream(question, **stream_kwargs)
 
             while True:
                 result = await asyncio.to_thread(_next_chunk, gen)
@@ -230,6 +241,7 @@ async def ws_ask(websocket: WebSocket):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    verbosity = body.get("verbosity") or None
     use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
@@ -249,7 +261,12 @@ async def ws_ask(websocket: WebSocket):
         return next(gen, _sentinel)
 
     try:
-        gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model, results=results)
+        stream_kwargs = {"top_k": top_k, "file_type": file_type, "model": model}
+        if results is not None:
+            stream_kwargs["results"] = results
+        if verbosity is not None:
+            stream_kwargs["verbosity"] = verbosity
+        gen = ask_stream(question, **stream_kwargs)
 
         while True:
             result = await asyncio.to_thread(_next_chunk, gen)
@@ -318,6 +335,7 @@ async def api_search(request: Request):
                 "score": r.score,
                 "content": r.content,
                 "preamble": r.preamble,
+                "summary": r.summary,
                 "comments": r.comments,
                 "copy_references": r.copy_references,
                 "calls_to": r.calls_to,

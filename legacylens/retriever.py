@@ -42,6 +42,7 @@ def _parse_result(r: dict) -> QueryResult:
         end_line=meta.get("end_line", 0),
         score=r["score"],
         preamble=meta.get("preamble", ""),
+        summary=meta.get("summary", ""),
         comments=meta.get("comments", ""),
         copy_references=copy_references,
         calls_to=calls_to,

@@ -78,9 +78,12 @@ def _format_context(results: list) -> str:
     parts = []
     for i, r in enumerate(results, 1):
         score_str = f"{r.score:.3f}" if r.score is not None else "n/a"
+        summary = (r.summary or "").strip()
+        summary_block = f"Summary: {summary}\n" if summary else ""
         parts.append(
             f"--- Source {i}: {r.file_path}:{r.start_line}-{r.end_line} "
             f"(score: {score_str}) ---\n"
+            f"{summary_block}"
             f"{r.preamble}\n\n"
             f"{r.content}\n"
         )
@@ -119,6 +122,7 @@ def _serialize_source(result) -> dict:
         "score": result.score,
         "chunk_type": result.chunk_type,
         "preamble": result.preamble,
+        "summary": result.summary,
         "content": result.content,
         "comments": result.comments,
         "copy_references": result.copy_references,

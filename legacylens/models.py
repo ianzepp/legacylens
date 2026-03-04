@@ -12,6 +12,7 @@ class CodeChunk:
     start_line: int
     end_line: int
     preamble: str = ""
+    summary: str = ""
     parent_program: str = ""
     comments: str = ""
     copy_references: list[str] = field(default_factory=list)
@@ -30,6 +31,7 @@ class QueryResult:
     end_line: int
     score: float
     preamble: str = ""
+    summary: str = ""
     comments: str = ""
     copy_references: list[str] = field(default_factory=list)
     calls_to: list[str] = field(default_factory=list)
