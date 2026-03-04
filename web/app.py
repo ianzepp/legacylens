@@ -1,10 +1,12 @@
 """FastAPI web application for LegacyLens."""
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import threading
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -20,6 +22,7 @@ if os.path.isdir(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 logger = logging.getLogger(__name__)
+CACHE_DIR = Path(__file__).resolve().parent / "cache" / "search"
 
 _warmup_started = False
 _warmup_lock = threading.Lock()
@@ -70,6 +73,50 @@ def _trigger_llm_warmup_once():
     loop.create_task(asyncio.to_thread(_run_llm_warmup))
 
 
+def _is_truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _cache_file_for_query(query: str) -> Path:
+    digest = hashlib.sha256(query.encode("utf-8")).hexdigest()
+    return CACHE_DIR / f"{digest}.json"
+
+
+def _get_cached_results(query: str, top_k: int, file_type: str | None) -> list[dict] | None:
+    """Return cached search results if present and request is cache-eligible."""
+    if file_type:
+        return None
+
+    cache_file = _cache_file_for_query(query)
+    if not cache_file.is_file():
+        return None
+
+    try:
+        with cache_file.open(encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception as exc:
+        logger.debug("L1 cache read failed for %s: %s", cache_file, exc)
+        return None
+
+    if payload.get("query") != query:
+        logger.debug("L1 cache hash collision/mismatch for %s", cache_file)
+        return None
+
+    results = payload.get("results")
+    if not isinstance(results, list):
+        return None
+
+    try:
+        k = int(top_k)
+    except (TypeError, ValueError):
+        k = 10
+    return results[:k]
+
+
 async def _send_ws_jsonl_event(websocket: WebSocket, event_type: str, data):
     payload = {"type": event_type, "data": data}
     await websocket.send_text(json.dumps(payload) + "\n")
@@ -88,13 +135,20 @@ async def api_ask(request: Request):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
         return {"error": "Question is required"}
 
     from legacylens.chain import ask
+    from legacylens.models import QueryResult
     try:
-        result = await asyncio.to_thread(ask, question, top_k, file_type, model)
+        cached = _get_cached_results(question, top_k, file_type) if use_l1 else None
+        if cached is not None:
+            results = [QueryResult(**r) for r in cached]
+            result = await asyncio.to_thread(ask, question, top_k, file_type, model, results)
+        else:
+            result = await asyncio.to_thread(ask, question, top_k, file_type, model)
     except Exception as exc:
         return {"error": str(exc), "sources": []}
 
@@ -108,6 +162,7 @@ async def api_ask_stream(request: Request):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
         async def error_stream():
@@ -116,6 +171,10 @@ async def api_ask_stream(request: Request):
 
     # Stream from LLM
     from legacylens.chain import ask_stream
+    from legacylens.models import QueryResult
+
+    cached = _get_cached_results(question, top_k, file_type) if use_l1 else None
+    results = [QueryResult(**r) for r in cached] if cached is not None else None
 
     _sentinel = object()
 
@@ -131,7 +190,7 @@ async def api_ask_stream(request: Request):
         sources = []
         stats = {}
         try:
-            gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model)
+            gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model, results=results)
 
             while True:
                 result = await asyncio.to_thread(_next_chunk, gen)
@@ -171,6 +230,7 @@ async def ws_ask(websocket: WebSocket):
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
     model = body.get("model") or None
+    use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not question.strip():
         await _send_ws_jsonl_event(websocket, "error", "Question is required")
@@ -178,6 +238,10 @@ async def ws_ask(websocket: WebSocket):
         return
 
     from legacylens.chain import ask_stream
+    from legacylens.models import QueryResult
+
+    cached = _get_cached_results(question, top_k, file_type) if use_l1 else None
+    results = [QueryResult(**r) for r in cached] if cached is not None else None
 
     _sentinel = object()
 
@@ -185,7 +249,7 @@ async def ws_ask(websocket: WebSocket):
         return next(gen, _sentinel)
 
     try:
-        gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model)
+        gen = ask_stream(question, top_k=top_k, file_type=file_type, model=model, results=results)
 
         while True:
             result = await asyncio.to_thread(_next_chunk, gen)
@@ -229,9 +293,14 @@ async def api_search(request: Request):
     query = body.get("query", "")
     top_k = body.get("top_k", 10)
     file_type = body.get("file_type") or None
+    use_l1 = _is_truthy(body.get("l1_cache", False))
 
     if not query.strip():
         return {"error": "Query is required"}
+
+    cached = _get_cached_results(query, top_k, file_type) if use_l1 else None
+    if cached is not None:
+        return {"results": cached}
 
     from legacylens.retriever import retrieve
 

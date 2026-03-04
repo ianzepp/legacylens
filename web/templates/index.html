@@ -898,6 +898,13 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
+                <div class="config-group">
+                    <label class="config-label">L1 Cache</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cfg-l1-cache">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
         </form>
 
@@ -1505,6 +1512,7 @@
             const topK = parseInt(document.getElementById('cfg-topk').value, 10);
             const model = document.getElementById('cfg-model').value;
             const useStream = document.getElementById('cfg-stream').checked;
+            const useL1Cache = document.getElementById('cfg-l1-cache').checked;
 
             const btn = document.getElementById('btn-submit');
             btn.disabled = true;
@@ -1519,6 +1527,7 @@
                 file_type: fileType || null,
                 top_k: topK,
                 model: model,
+                l1_cache: useL1Cache,
             };
             clearWsLog();
 
